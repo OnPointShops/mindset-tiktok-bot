@@ -4,8 +4,8 @@ Nutzt dieselbe kostenlose Pipeline wie fulltest.py: Gemini-Skript -> Edge-Stimme
 Video (Pixabay/prozedural + Musik) -> Titelbild. Lädt NICHTS zu TikTok hoch.
 
 Aufruf:
-  python3 make_video.py "Dein Thema/Briefing hier als ein String"          # Langform (40-60s)
-  python3 make_video.py "Dein Thema/Briefing" --kurz                        # Kurzform (15-25s)
+  python3 make_video.py "Dein Thema/Briefing hier als ein String"          # Kurzform (20-30s)
+  python3 make_video.py "Dein Thema/Briefing" --lang                        # Langform (40-60s)
 """
 import json
 import logging
@@ -27,7 +27,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     theme_hint = sys.argv[1]
-    length = "normal" if "--kurz" in sys.argv else "long"
+    length = "long" if "--lang" in sys.argv else "normal"
     stamp = int(time.time())
 
     print("1/4  Skript holen (Gemini, Thema vorgegeben) ...")
