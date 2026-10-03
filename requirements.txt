@@ -19,4 +19,7 @@ faster-whisper>=1.0.3      # Whisper-Transkription für Burn-in Untertitel (schn
 tiktokautouploader>=0.1.0
 phantomwright
 
+# --- Content-Analyse (echte View-Zahlen vom eigenen Profil holen) ---
+playwright>=1.45.0      # nach Installation einmalig: playwright install chromium
+
 edge-tts>=6.1.0          # Kostenlose Microsoft-Neuralstimmen (Default-TTS)

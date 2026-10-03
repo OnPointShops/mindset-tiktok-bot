@@ -49,6 +49,14 @@ def main():
     self_update()
     problems, health, strategy, posted = [], None, {}, 0
 
+    try:
+        import stats_scraper
+        new_rows = stats_scraper.update_performance()
+        if new_rows:
+            log.info("Performance-Daten aktualisiert: %d neue Zeile(n)", new_rows)
+    except Exception as e:  # noqa: BLE001
+        problems.append(f"Performance-Scrape fehlgeschlagen (TikTok-UI evtl. geändert): {e}")
+
     import selftest
     try:
         ok, health = selftest.run_selftest()
@@ -86,10 +94,10 @@ def main():
         if strategy.get("rule_alerts"):
             lines += ["## Regel-Warnungen"] + [f"- {x}" for x in strategy["rule_alerts"]] + [""]
         lines += ["## Experiment für morgen", strategy.get("experiment_of_the_day", "-"), ""]
-    lines += ["## Deine Aufgabe (30 Sekunden)",
-              "Trag Views/Likes/Kommentare der letzten Videos in content/performance.csv ein "
-              "(topic,format,views,likes,comments,shares) oder schick mir einen Screenshot aus TikTok Studio. "
-              "Ohne diese Zahlen lernt der Bot nur aus Recherche, nicht aus echten Ergebnissen."]
+    lines += ["## Views",
+              "Werden jetzt automatisch vom öffentlichen Profil abgegriffen (stats_scraper.py) - "
+              "keine manuelle Eingabe mehr nötig. Falls oben ein Performance-Scrape-Fehler steht: "
+              "TikTok hat vermutlich sein Profil-Layout geändert, kurz Bescheid geben, dann fixe ich das."]
     text = "\n".join(lines)
     (BRIEF_DIR / f"{datetime.now():%Y-%m-%d}.md").write_text(text, encoding="utf-8")
     (BRIEF_DIR / "latest.md").write_text(text, encoding="utf-8")

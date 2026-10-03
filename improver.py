@@ -51,7 +51,16 @@ def _summary():
 PROMPT = """Du bist Growth-Stratege für einen automatisierten, deutschsprachigen \
 Mindset/Motivation-TikTok-Kanal (Voiceover + Stock-Footage + Untertitel, 1 Video/Tag).
 
-Recherchiere per Web-Suche AKTUELL (Datum: {today}):
+Feststehende Evidenzbasis (bereits bestätigt, nicht neu recherchieren, als Rahmen nutzen):
+- Algorithmus-Priorität: Completion-Rate (>=70%) und Shares schlagen Likes.
+- Die ersten 3 Sekunden entscheiden; starke Hook-Typen: Contrarian-Take, Outcome-Promise, \
+Curiosity-Gap.
+- "Rau/authentisch" schlägt "poliert" messbar (~30% mehr Engagement).
+- Trending Sounds sind kein Viralitäts-Hebel mehr (<2% der viralen Clips).
+- Share-Trigger-CTAs ("das musst du jemandem schicken") schlagen Like-Bettel-CTAs.
+- Loop-Potenzial (Ende führt gedanklich zum Hook zurück) wird vom Algorithmus belohnt.
+
+Recherchiere per Web-Suche AKTUELL (Datum: {today}), was DARÜBER HINAUS gerade neu/anders ist:
 1. Welche Hook-Muster, Themen und Formate funktionieren gerade in der DE/EN Mindset-Nische auf TikTok?
 2. Aktuelle TikTok-Regeln/Änderungen, die den Kanal betreffen (AI-Content-Kennzeichnung, \
 Creator Rewards Program Voraussetzungen, Reichweiten-Faktoren wie Watchtime/Videolänge).
