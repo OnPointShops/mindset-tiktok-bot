@@ -211,11 +211,19 @@ def _text_clip(text_or_words, font_size: int, fill, y_frac: float, start: float,
                 cx += d.textlength(w_txt + " ", font=font)
 
     base_y = int(config.VIDEO_HEIGHT * y_frac)
-    clip = (ImageClip(np.array(img)).with_start(start).with_duration(max(dur, 0.2))
-            .with_position((0, base_y)))
-    if pop:
-        clip = _pop_in(clip, base_x=0, base_y=base_y)
-    return clip
+    dur = max(dur, 0.2)
+    arr = np.array(img)
+    if not pop:
+        return [ImageClip(arr).with_start(start).with_duration(dur).with_position((0, base_y))]
+    # Pop nur in den ersten 0.12s (skalierter Clip), Rest statisch. Ein resized(f(t)) über die
+    # ganze Lebenszeit würde jeden Frame durch PIL schicken, auch wenn der Faktor längst 1.0 ist
+    # -> war einer der Hauptgründe für minutenlange Renderzeiten.
+    pop_dur = min(0.12, dur)
+    parts = [_pop_in(ImageClip(arr).with_start(start).with_duration(pop_dur), base_x=0, base_y=base_y)]
+    if dur - pop_dur > 0.01:
+        parts.append(ImageClip(arr).with_start(start + pop_dur).with_duration(dur - pop_dur)
+                     .with_position((0, base_y)))
+    return parts
 
 
 def _mix_music(voice_path: str, script: dict) -> str:
@@ -289,19 +297,19 @@ def build_video(script: dict, audio_path: str, output_path: str) -> str:
     hook_fill = (255, 255, 255, 255) if backgrounds.VISUAL_STYLE == "street_bw" else (255, 235, 90, 255)
 
     caption_clips = [
-        _text_clip(g["words"], 84, (255, 255, 255, 255), 0.66, g["start"],
-                   max(g["end"] - g["start"], 0.3), emphasis_idx=g["emphasis_idx"], pop=True)
-        for g in caption_groups
+        part for g in caption_groups
+        for part in _text_clip(g["words"], 84, (255, 255, 255, 255), 0.66, g["start"],
+                               max(g["end"] - g["start"], 0.3), emphasis_idx=g["emphasis_idx"], pop=True)
     ]
 
     # 3. Hook-Overlay für die ersten 1.8s (Pattern-Interrupt oben im Bild)
-    hook_clip = _text_clip(script.get("hook", "").upper(), 96, hook_fill, 0.16,
-                           0, min(1.8, duration), max_w_frac=0.9, stroke=9, pop=True)
+    hook_clips = _text_clip(script.get("hook", "").upper(), 96, hook_fill, 0.16,
+                            0, min(1.8, duration), max_w_frac=0.9, stroke=9, pop=True)
 
-    final = CompositeVideoClip([bg, hook_clip, *caption_clips], size=(config.VIDEO_WIDTH, config.VIDEO_HEIGHT))
+    final = CompositeVideoClip([bg, *hook_clips, *caption_clips], size=(config.VIDEO_WIDTH, config.VIDEO_HEIGHT))
     final.write_videofile(
         output_path, fps=config.VIDEO_FPS, codec="libx264", audio_codec="aac",
-        threads=4, logger=None,
+        threads=4, preset="veryfast", logger="bar",
     )
 
     # Aufräumen

@@ -6,6 +6,7 @@ Hintergründe für die Videos. Reihenfolge bei BG_PROVIDER=auto:
      braucht KEINEN Key, keinen Download, funktioniert immer.
 """
 import hashlib
+import itertools
 import logging
 import os
 import random
@@ -109,49 +110,56 @@ def _grain_layer(duration):
     return VideoClip(make_frame, duration=duration)
 
 
-def _cinematic_overlay(clip, duration):
-    """Vignette + Verlauf (+ im street_bw-Stil: Graustufen/Kontrast/Körnung wie ein
-    Beton-Wand-Zitat-Poster) -> emotionaler Look + Text bleibt lesbar."""
-    global _OVERLAY_CACHE
-    import numpy as np
-    from PIL import Image
-    from moviepy import ImageClip, CompositeVideoClip
+_GRAIN_FRAMES = None
 
-    if VISUAL_STYLE == "street_bw":
-        clip = _apply_bw_grade(clip)
 
+def _overlay_tables():
+    """Einmalig vorberechnet: Vignette/Verlauf als Multiplikator (H,W,1) + 6 Korn-Frames."""
+    global _OVERLAY_CACHE, _GRAIN_FRAMES
     if _OVERLAY_CACHE is None:
         W, H = config.VIDEO_WIDTH, config.VIDEO_HEIGHT
         ys, xs = np.mgrid[0:H, 0:W].astype(np.float32)
-        # Vignette (Raender dunkler)
-        vig = (((xs / W - 0.5) * 1.5) ** 2 + ((ys / H - 0.5) * 1.3) ** 2)
-        vig = np.clip(vig * 0.8, 0, 0.72)
-        # Verlauf unten (wo die Untertitel sitzen) + leicht oben (Hook)
-        bottom = np.clip((ys / H - 0.5) / 0.5, 0, 1) ** 1.5 * 0.55
-        top = np.clip((0.28 - ys / H) / 0.28, 0, 1) * 0.35
-        alpha = np.clip(vig + bottom + top, 0, 0.82)
-        rgba = np.zeros((H, W, 4), np.uint8)
-        rgba[..., 3] = (alpha * 255).astype(np.uint8)  # schwarz mit variabler Deckkraft
-        _OVERLAY_CACHE = rgba
-    ov = ImageClip(_OVERLAY_CACHE).with_duration(duration)
-    layers = [clip, ov]
+        vig = np.clip((((xs / W - 0.5) * 1.5) ** 2 + ((ys / H - 0.5) * 1.3) ** 2) * 0.8, 0, 0.72)
+        bottom = np.clip((ys / H - 0.5) / 0.5, 0, 1) ** 1.5 * 0.55   # unten: Untertitel-Zone
+        top = np.clip((0.28 - ys / H) / 0.28, 0, 1) * 0.35           # oben: Hook-Zone
+        _OVERLAY_CACHE = (1.0 - np.clip(vig + bottom + top, 0, 0.82))[..., None].astype(np.float32)
+        rng = np.random.default_rng(42)
+        small = rng.integers(90, 170, size=(6, H // 3, W // 3), dtype=np.uint8)
+        _GRAIN_FRAMES = [np.asarray(Image.fromarray(t).resize((W, H), Image.NEAREST)) for t in small]
+    return _OVERLAY_CACHE, _GRAIN_FRAMES
 
-    if VISUAL_STYLE == "street_bw":
-        grain = _grain_layer(duration).with_opacity(0.05)
-        layers.append(grain)
 
-    return CompositeVideoClip(layers, size=(config.VIDEO_WIDTH, config.VIDEO_HEIGHT))
+def _cinematic_overlay(clip, duration):
+    """S/W-Grading + Vignette/Verlauf + Filmkorn in EINEM Durchgang pro Frame.
+    (Vorher: drei verschachtelte Composite-Clips -> pro Frame mehrere Vollbild-Konvertierungen,
+    das war der Hauptgrund für minutenlange Renderzeiten.)"""
+    mult, grain = _overlay_tables()
+    bw = VISUAL_STYLE == "street_bw"
+    coeff = np.array([0.299, 0.587, 0.114], dtype=np.float32)
 
+    def tf(get_frame, t):
+        f = get_frame(t).astype(np.float32)
+        if bw:
+            g = f @ coeff
+            g = np.clip((g - 128.0) * 1.38 + 128.0, 6, 249)[..., None]
+            g = g * mult
+            g = g * 0.95 + grain[int(t * 12) % 6][..., None].astype(np.float32) * 0.05
+            return np.repeat(np.clip(g, 0, 255).astype(np.uint8), 3, axis=2)
+        return np.clip(f * mult, 0, 255).astype(np.uint8)
+
+    return clip.transform(tf).with_duration(duration)
 
 
 def _fit(clip: VideoFileClip, duration: float):
     """Auf 1080x1920 croppen und auf Länge loopen/trimmen."""
     target = config.VIDEO_WIDTH / config.VIDEO_HEIGHT
     if clip.w / clip.h > target:
-        clip = clip.resized(height=config.VIDEO_HEIGHT)
+        if clip.h != config.VIDEO_HEIGHT:  # ffmpeg hat meist schon skaliert -> kein Python-Resize pro Frame
+            clip = clip.resized(height=config.VIDEO_HEIGHT)
         clip = clip.cropped(x_center=clip.w / 2, width=config.VIDEO_WIDTH)
     else:
-        clip = clip.resized(width=config.VIDEO_WIDTH)
+        if clip.w != config.VIDEO_WIDTH:
+            clip = clip.resized(width=config.VIDEO_WIDTH)
         clip = clip.cropped(y_center=clip.h / 2, height=config.VIDEO_HEIGHT)
     if clip.duration < duration:
         clip = concatenate_videoclips([clip] * (int(duration // clip.duration) + 1))
@@ -159,16 +167,34 @@ def _fit(clip: VideoFileClip, duration: float):
 
 
 def _slow_zoom(clip, max_zoom=1.09):
-    """Leichter, konstanter Zoom-in übers ganze Clip-Segment -> wirkt geschnitten/dynamisch
-    statt wie ein stehendes Standbild, auch bei echtem Stock-Footage (nicht nur Ken Burns
-    auf Fotos). Zoomt um das Zentrum, damit nichts aus dem 1080x1920-Frame rutscht."""
+    """Leichter Zoom-in übers Segment (wirkt geschnitten statt wie ein Standbild). Schneidet pro
+    Frame die Mitte zu und skaliert auf die Originalgröße zurück -> Ausgabegröße bleibt konstant,
+    nur ein Resize pro Frame."""
     dur = max(clip.duration, 0.1)
-    zoomed = clip.resized(lambda t: 1.0 + (max_zoom - 1.0) * min(t / dur, 1.0))
-    return zoomed.with_position(("center", "center"))
+
+    def tf(get_frame, t):
+        frame = get_frame(t)
+        h, w = frame.shape[:2]
+        z = 1.0 + (max_zoom - 1.0) * min(t / dur, 1.0)
+        cw, ch = int(w / z), int(h / z)
+        x0, y0 = (w - cw) // 2, (h - ch) // 2
+        crop = frame[y0:y0 + ch, x0:x0 + cw]
+        return np.asarray(Image.fromarray(crop).resize((w, h), Image.BILINEAR))
+
+    return clip.transform(tf)
+
+
+def _open_clip(path: str):
+    """Stock-Video öffnen und von ffmpeg direkt auf Zielhöhe skalieren lassen (schnell, nativ),
+    statt jeden 4K-Frame in Python per PIL zu verkleinern."""
+    return VideoFileClip(path, target_resolution=(None, config.VIDEO_HEIGHT)).without_audio()  # (Breite, Höhe)
+
+
+_DL_COUNTER = itertools.count()
 
 
 def _download(url: str, name: str) -> str:
-    path = str(config.VIDEO_DIR / f"_bg_{name}.mp4")
+    path = str(config.VIDEO_DIR / f"_bg_{name}_{next(_DL_COUNTER)}.mp4")
     Path(path).write_bytes(requests.get(url, timeout=90).content)
     return path
 
@@ -201,7 +227,7 @@ def _pixabay_clips(query, n=3):
         if len(paths) >= n:
             break
         v = hit["videos"]
-        f = v.get("large") or v.get("medium") or v.get("small")
+        f = v.get("medium") or v.get("large") or v.get("small")
         if not f:
             continue
         try:
@@ -239,20 +265,15 @@ def _pixabay_images(query, n=3):
 
 
 def _kenburns(image_path, dur):
-    """Langsamer Zoom auf ein Standbild (emotionaler als ein Standfoto)."""
+    """Langsamer Zoom auf ein Standbild: Foto einmal auf 1080x1920 croppen, dann Zoom-Transform."""
     from moviepy import ImageClip
-    clip = ImageClip(image_path).with_duration(dur)
-    clip = _fit_image(clip)
-    return clip.resized(lambda t: 1.0 + 0.06 * t / max(dur, 1)).with_position(("center", "center"))
-
-
-def _fit_image(clip):
-    target = config.VIDEO_WIDTH / config.VIDEO_HEIGHT
-    if clip.w / clip.h > target:
-        clip = clip.resized(height=config.VIDEO_HEIGHT)
-    else:
-        clip = clip.resized(width=config.VIDEO_WIDTH)
-    return clip
+    W, H = config.VIDEO_WIDTH, config.VIDEO_HEIGHT
+    img = Image.open(image_path).convert("RGB")
+    k = max(W / img.width, H / img.height)
+    img = img.resize((int(img.width * k) + 1, int(img.height * k) + 1), Image.LANCZOS)
+    x, y = (img.width - W) // 2, (img.height - H) // 2
+    clip = ImageClip(np.asarray(img.crop((x, y, x + W, y + H)))).with_duration(dur)
+    return _slow_zoom(clip, max_zoom=1.06)
 
 
 def _sequence(paths, duration):
@@ -262,7 +283,7 @@ def _sequence(paths, duration):
     per = max(duration / len(paths), 2.5)
     parts = []
     for pth in paths:
-        c = _slow_zoom(_fit(VideoFileClip(pth).without_audio(), per))
+        c = _slow_zoom(_fit(_open_clip(pth), per))
         parts.append(c)
     seq = concatenate_videoclips(parts)
     if seq.duration < duration:
@@ -295,7 +316,7 @@ def _segment_clip(query: str, duration: float, topic_seed: str):
     if BG_PROVIDER in ("auto", "pexels") and config.PEXELS_API_KEY:
         try:
             from moviepy import VideoFileClip
-            return _slow_zoom(_fit(VideoFileClip(_pexels(query, duration)), duration))
+            return _slow_zoom(_fit(_open_clip(_pexels(query, duration)), duration))
         except Exception as e:  # noqa: BLE001
             logger.warning("Pexels für '%s' fehlgeschlagen (%s) -> prozedural", query, e)
     return _procedural(duration, topic_seed + query)
@@ -334,9 +355,9 @@ def get_background(script: dict, duration: float):
 
     logger.info("Hintergrund: %d Segmente (%s)", len(queries), " / ".join(queries))
     from moviepy import concatenate_videoclips
-    full = concatenate_videoclips(segments, method="compose")
+    full = concatenate_videoclips(segments)
     # Rundungsfehler ausgleichen, exakt auf Audiolänge
     if full.duration < duration:
-        full = concatenate_videoclips([full, segments[-1]], method="compose")
+        full = concatenate_videoclips([full, segments[-1]])
     full = full.subclipped(0, duration)
     return _cinematic_overlay(full, duration)
