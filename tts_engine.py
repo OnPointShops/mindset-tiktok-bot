@@ -39,9 +39,11 @@ TTS_BACKEND = os.getenv("TTS_BACKEND", "edge")  # "google" | "edge" | "piper" | 
 GOOGLE_TTS_API_KEY = os.getenv("GOOGLE_TTS_API_KEY", "")
 GOOGLE_VOICE = os.getenv("GOOGLE_VOICE", "de-DE-Chirp3-HD-Charon")
 GOOGLE_RATE = float(os.getenv("GOOGLE_RATE", "0.95"))
-EDGE_VOICE = os.getenv("EDGE_VOICE", "de-DE-FlorianMultilingualNeural")  # alt: de-DE-ConradNeural, de-DE-KillianNeural
-EDGE_RATE = os.getenv("EDGE_RATE", "-4%")
-EDGE_PITCH = os.getenv("EDGE_PITCH", "-6Hz")
+# ConradNeural klingt von Haus aus älter/tiefer als Florian -> bessere Basis für die
+# "hat-selbst-gelitten"-Erzähler-Stimme (Rest macht die Voice-FX-Kette unten).
+EDGE_VOICE = os.getenv("EDGE_VOICE", "de-DE-ConradNeural")  # alt: de-DE-KillianNeural, de-DE-FlorianMultilingualNeural
+EDGE_RATE = os.getenv("EDGE_RATE", "-14%")   # langsamer, schwerer, bedeutungsvoller
+EDGE_PITCH = os.getenv("EDGE_PITCH", "-9Hz")
 FISH_API_KEY = os.getenv("FISH_API_KEY", "")
 FISH_VOICE_ID = os.getenv("FISH_VOICE_ID", "")
 
@@ -55,16 +57,18 @@ _kokoro_instance = None
 # ── Piper Backend ──────────────────────────────────────────────────────────────
 
 
-# --- Stimm-Veredelung: "Jarvis"-Look (tiefer, ruhiger, warm, leichter Raum) ---
-VOICE_FX = os.getenv("VOICE_FX", "jarvis")  # "jarvis" | "off"
-VOICE_PITCH = float(os.getenv("VOICE_PITCH", "0.96"))  # <1 = tiefer
+# --- Stimm-Veredelung ---
+# "grimdark" -> tief, rau, narbig, episch (jemand, der selbst gelitten hat)   [DEFAULT]
+# "jarvis"   -> tiefer, ruhiger, warm, leichter Raum (der alte, saubere Sound)
+# "off"      -> Original-Stimme unbearbeitet
+VOICE_FX = os.getenv("VOICE_FX", "grimdark")
+VOICE_PITCH = float(os.getenv("VOICE_PITCH", "0.90"))  # <1 = tiefer; grimdark greift tiefer als jarvis
 
 
 def _apply_voice_fx(wav_path: str) -> str:
-    """Tiefer + Bass + Kompressor + dezenter Raumhall per ffmpeg. Bei Fehler: Original bleibt."""
+    """Veredelt die Rohstimme per ffmpeg. Bei Fehler: Original bleibt unangetastet."""
     if VOICE_FX == "off":
         return wav_path
-    import json
     import shutil
     if not shutil.which("ffmpeg"):
         logger.warning("ffmpeg fehlt — Stimme bleibt unbearbeitet")
@@ -73,12 +77,26 @@ def _apply_voice_fx(wav_path: str) -> str:
         sr = sf.info(wav_path).samplerate
     except Exception:  # noqa: BLE001
         sr = 22050
-    af = (
-        f"asetrate={int(sr * VOICE_PITCH)},aresample={sr},atempo={1 / VOICE_PITCH:.4f},"
-        "highpass=f=70,bass=g=4:f=110,equalizer=f=3000:t=q:w=1.2:g=1.5,"
-        "acompressor=threshold=0.1:ratio=3:attack=5:release=90:makeup=2,"
-        "aecho=0.85:0.8:55:0.14,loudnorm=I=-16:TP=-1.5:LRA=9"
-    )
+
+    if VOICE_FX == "grimdark":
+        # Tiefer + langsamer (gewichtiger) -> leichte Verzerrung/Bit-Crush (Narben in der Stimme)
+        # -> Bass/Brust-Resonanz -> harter Kompressor (Nähe/Druck) -> lange, dunkle Hallfahne (episch)
+        af = (
+            f"asetrate={int(sr * VOICE_PITCH)},aresample={sr},atempo={1 / VOICE_PITCH:.4f},"
+            "highpass=f=55,bass=g=7:f=85,"
+            "acrusher=bits=13:mix=0.12:mode=log,"
+            "equalizer=f=2800:t=q:w=1:g=-2.5,equalizer=f=400:t=q:w=1.2:g=2,"
+            "acompressor=threshold=0.07:ratio=4.5:attack=3:release=160:makeup=3.5,"
+            "aecho=0.9:0.88:80:0.2,loudnorm=I=-15:TP=-1.2:LRA=10"
+        )
+    else:  # "jarvis" — der bisherige, saubere Sound
+        af = (
+            f"asetrate={int(sr * VOICE_PITCH)},aresample={sr},atempo={1 / VOICE_PITCH:.4f},"
+            "highpass=f=70,bass=g=4:f=110,equalizer=f=3000:t=q:w=1.2:g=1.5,"
+            "acompressor=threshold=0.1:ratio=3:attack=5:release=90:makeup=2,"
+            "aecho=0.85:0.8:55:0.14,loudnorm=I=-16:TP=-1.5:LRA=9"
+        )
+
     tmp = wav_path + ".fx.wav"
     r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", wav_path, "-af", af, "-ar", str(sr), "-ac", "1", tmp],
                        capture_output=True, timeout=120)

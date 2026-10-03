@@ -38,7 +38,7 @@ Gib AUSSCHLIESSLICH valides JSON zurück, keine Markdown-Codeblöcke, kein Flie�
   "caption": "...",
   "hashtags": ["...", "..."],
   "format": "das verwendete Format-Label",
-  "visual_query": "3-5 ENGLISCHE Suchwörter fürs Hintergrund-Stockvideo: GRAFISCHE, kontraststarke Motive, die auch in Schwarz-Weiß stark wirken (Silhouette, raue Textur, Grossstadt-Beton, Bewegung). Beispiele: 'man walking away silhouette alone', 'boxer wrapping hands gym', 'urban concrete wall texture gritty', 'lone figure city street night', 'storm ocean waves dramatic silhouette'. KEINE abstrakten Begriffe, immer ein konkretes Motiv mit roher, kämpferischer Stimmung.",
+  "visual_query": "3-5 ENGLISCHE Suchwörter fürs Hintergrund-Stockvideo: GRAFISCHE, kontraststarke Motive von MENSCHEN IN DER BEWEGUNG DES KAMPFS/AUFSTEHENS, die auch in Schwarz-Weiß stark wirken. Beispiele: 'man getting up after falling struggle', 'exhausted athlete standing up determination', 'person climbing out of pit effort', 'boxer rising after knockdown', 'man walking through smoke fire silhouette', 'runner collapsing pushing through pain', 'hands gripping ledge climbing up'. IMMER ein Mensch in echter körperlicher Anstrengung/im Moment des Wiederaufstehens, NIE nur Landschaft oder Abstraktes.",
   "full_voiceover_text": "HOOK. BODY. CTA — als ein zusammenhängender, natürlich \
 sprechbarer Text ohne Labels."
 }
