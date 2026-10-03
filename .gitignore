@@ -1,0 +1,22 @@
+# Geheimnisse & Zustand NIEMALS ins Repo
+.env
+cookies/
+# Grosse/erzeugte Dateien (bleiben lokal)
+assets/piper/
+assets/music/
+audio/
+videos/
+briefing/
+logs/
+content/post_queue.json
+content/current_trends.json
+content/strategy.json
+content/performance.csv
+content/fulltest_script.json
+hf_tmp/
+__pycache__/
+*.pyc
+.DS_Store
+assets/*.onnx
+assets/*.bin
+*TEMP_MPY*

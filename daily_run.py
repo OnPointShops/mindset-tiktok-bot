@@ -1,0 +1,101 @@
+"""
+Täglicher Autopilot:  Selbsttest -> Recherche/Verbesserung -> Posting -> Briefing.
+Wird von launchd (Mac) einmal täglich gestartet, siehe install_automation.sh.
+Jeder Schritt ist isoliert: ein Fehler stoppt nie den Rest, wird aber im Briefing gemeldet.
+"""
+import json
+import logging
+import subprocess
+import sys
+import traceback
+from datetime import datetime
+
+import config
+
+BRIEF_DIR = config.BASE_DIR / "briefing"
+BRIEF_DIR.mkdir(exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    handlers=[logging.FileHandler(config.LOGS_DIR / f"{datetime.now():%Y-%m-%d}.log"),
+              logging.StreamHandler(sys.stdout)])
+log = logging.getLogger("daily_run")
+
+
+def notify(title, msg):
+    try:
+        subprocess.run(["osascript", "-e",
+                        f'display notification "{msg}" with title "{title}"'], timeout=10)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+
+def self_update():
+    """Holt neueste Code-Version per git pull (falls das Projekt ein git-Checkout ist)."""
+    import subprocess
+    if not (config.BASE_DIR / ".git").exists():
+        return
+    try:
+        r = subprocess.run(["git", "-C", str(config.BASE_DIR), "pull", "--ff-only"],
+                           capture_output=True, timeout=60, text=True)
+        if "Already up to date" not in r.stdout:
+            log.info("Code aktualisiert: %s", r.stdout.strip()[:200])
+    except Exception as e:  # noqa: BLE001
+        log.warning("Selbst-Update übersprungen: %s", e)
+
+
+
+def main():
+    self_update()
+    problems, health, strategy, posted = [], None, {}, 0
+
+    import selftest
+    try:
+        ok, health = selftest.run_selftest()
+        if not ok:
+            problems += [f"{c['name']}: {c['detail']}" for c in health["checks"] if not c["ok"] and c["critical"]]
+    except Exception:  # noqa: BLE001
+        ok = False
+        problems.append("Selbsttest abgestürzt: " + traceback.format_exc(limit=1))
+
+    try:
+        import improver
+        strategy = improver.run_improver()
+    except Exception as e:  # noqa: BLE001
+        problems.append(f"Verbesserungs-Recherche fehlgeschlagen: {e}")
+
+    if ok:
+        try:
+            import scheduler
+            posted = scheduler.run_daily_cycle()
+            if posted < config.POSTS_PER_DAY:
+                problems.append(f"Nur {posted}/{config.POSTS_PER_DAY} Videos gepostet (Logs prüfen)")
+        except Exception as e:  # noqa: BLE001
+            problems.append(f"Posting-Zyklus fehlgeschlagen: {e}")
+    else:
+        problems.append("Posting übersprungen, weil der Selbsttest kritische Fehler hatte.")
+
+    # Briefing schreiben
+    q = json.loads(config.QUEUE_FILE.read_text(encoding="utf-8")) if config.QUEUE_FILE.exists() else []
+    total_posted = len([x for x in q if x.get("status") == "posted"])
+    lines = [f"# JK24 Mindset-Bot Briefing {datetime.now():%d.%m.%Y}", "",
+             f"**Heute gepostet:** {posted}/{config.POSTS_PER_DAY}  |  **Gesamt:** {total_posted}", ""]
+    lines += ["## Probleme"] + ([f"- {p}" for p in problems] or ["- keine"]) + [""]
+    if strategy:
+        lines += ["## Neue Erkenntnisse"] + [f"- {x}" for x in strategy.get("lessons", [])] + [""]
+        if strategy.get("rule_alerts"):
+            lines += ["## Regel-Warnungen"] + [f"- {x}" for x in strategy["rule_alerts"]] + [""]
+        lines += ["## Experiment für morgen", strategy.get("experiment_of_the_day", "-"), ""]
+    lines += ["## Deine Aufgabe (30 Sekunden)",
+              "Trag Views/Likes/Kommentare der letzten Videos in content/performance.csv ein "
+              "(topic,format,views,likes,comments,shares) oder schick mir einen Screenshot aus TikTok Studio. "
+              "Ohne diese Zahlen lernt der Bot nur aus Recherche, nicht aus echten Ergebnissen."]
+    text = "\n".join(lines)
+    (BRIEF_DIR / f"{datetime.now():%Y-%m-%d}.md").write_text(text, encoding="utf-8")
+    (BRIEF_DIR / "latest.md").write_text(text, encoding="utf-8")
+    notify("Mindset-Bot", f"{posted} Video(s) gepostet, {len(problems)} Problem(e). Briefing: briefing/latest.md")
+    log.info("Briefing geschrieben.")
+
+
+if __name__ == "__main__":
+    main()

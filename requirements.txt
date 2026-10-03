@@ -1,0 +1,22 @@
+# --- Core ---
+anthropic>=0.40.0          # Claude API für Script- & Trend-Generierung
+python-dotenv>=1.0.1
+schedule>=1.2.2            # Lightweight Cron-artiger Scheduler im Python-Prozess
+
+# --- TTS (lokal, kostenlos) ---
+kokoro-onnx>=0.4.0         # Kokoro TTS Runtime (ONNX, läuft auf CPU)
+soundfile>=0.12.1
+
+# --- Video-Assembly ---
+moviepy>=2.1.1
+pillow>=10.4.0
+requests>=2.32.0           # Pexels Stock-Footage Download
+
+# --- Auto-Captions ---
+faster-whisper>=1.0.3      # Whisper-Transkription für Burn-in Untertitel (schneller als openai-whisper)
+
+# --- TikTok Upload ---
+tiktokautouploader>=0.1.0
+phantomwright
+
+edge-tts>=6.1.0          # Kostenlose Microsoft-Neuralstimmen (Default-TTS)
