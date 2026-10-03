@@ -287,17 +287,32 @@ def _normalize_visual_queries(script: dict) -> dict:
     visual_query haben."""
     vq = script.get("visual_queries")
     if isinstance(vq, list) and len(vq) >= 1:
+        vq = [str(q) for q in vq if q][:8]
         while len(vq) < 3:
             vq.append(vq[-1])
-        script["visual_queries"] = vq[:3]
+        script["visual_queries"] = vq
         return script
     single = script.get("visual_query") or "person struggle rising determination"
     script["visual_queries"] = [single, single, single]
     return script
 
 
-def generate_script(theme_hint: str | None = None) -> dict:
-    """Erzeugt ein einzelnes Skript. theme_hint optional, sonst wählt Claude aus Trends."""
+LONG_FORM_RULES = """
+LANGFORM-MODUS (überschreibt die Längenvorgaben oben):
+- BODY: 10-14 Sätze, sprechbar in 40-60 Sekunden. Baue einen echten Spannungsbogen:
+  1) Unbequeme Ausgangslage/Schmerz  2) Eskalation: was es wirklich kostet  3) Wendepunkt/
+  Erkenntnis (der Contrarian-Kern)  4) Konsequenz: was die wenigen anders machen  5) Auflösung.
+- Halte die Spannung über die GANZE Länge: alle 2-3 Sätze ein neues Bild, eine neue Wendung
+  oder ein Mini-Cliffhanger ("Aber das ist nicht das Schlimmste."). Keine Wiederholungen,
+  kein Auffüllen - jede Zeile muss etwas Neues liefern.
+- visual_queries: exakt 6 Einträge, die den Bogen Fall -> Kampf -> Tiefpunkt -> Aufstehen ->
+  Weitergehen -> Entschlossenheit in sich klar unterscheidenden Motiven erzählen.
+"""
+
+
+def generate_script(theme_hint: str | None = None, length: str = "normal") -> dict:
+    """Erzeugt ein einzelnes Skript. theme_hint optional, sonst wählt Claude aus Trends.
+    length="long" -> 40-60s Langform mit Spannungsbogen und 6 Bildsegmenten."""
     trends = _load_trends()
     trend_context = ""
     if trends.get("themes"):
@@ -324,14 +339,15 @@ def generate_script(theme_hint: str | None = None) -> dict:
 
 {"Fokussiere dich auf dieses Thema: " + theme_hint if theme_hint else "Wähle ein Thema, das aktuell in der Mindset/Motivation-Nische zieht."}
 
-Erstelle EIN neues Skript nach den Systemregeln. Sei konkret, keine generischen Plattitüden."""
+Erstelle EIN neues Skript nach den Systemregeln. Sei konkret, keine generischen Plattitüden.
+{LONG_FORM_RULES if length == "long" else ""}"""
 
     if AI_BACKEND == "offline":
         used = {h.get("topic") for h in history}
         return _normalize_visual_queries(_offline_script(fmt, used))
 
     try:
-        raw = generate_llm(SYSTEM_PROMPT, user_prompt, max_tokens=900)
+        raw = generate_llm(SYSTEM_PROMPT, user_prompt, max_tokens=2200 if length == "long" else 900)
         script = _extract_json(raw)
     except Exception as e:  # noqa: BLE001  (kein Key / Dienst weg -> Offline-Vorrat)
         logger.warning("KI nicht verfügbar (%s) -> Offline-Vorrat", e)

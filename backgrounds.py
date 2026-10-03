@@ -307,11 +307,18 @@ def get_background(script: dict, duration: float):
     EINER Query fürs ganze Video -> die Bildsprache entwickelt sich mit dem Text statt
     beliebig irgendein Clip-Wechsel mitten im Satz."""
     queries = script.get("visual_queries") or [script.get("visual_query") or "cinematic motivation"] * 3
-    queries = (queries + queries[-1:] * 3)[:3] if queries else ["cinematic motivation"] * 3
+    queries = list(queries)[:8]
+    while len(queries) < 3:
+        queries.append(queries[-1])
     seed = script.get("topic", "x") + script.get("hook", "")
 
-    # Gewichtung: Hook kurz & knackig, Body-Mitte am längsten (meiste Sprechzeit), CTA kurz.
-    weights = [0.22, 0.56, 0.22]
+    # Gewichtung: Hook/CTA kurz & knackig, die Mitte teilt sich die meiste Sprechzeit.
+    n = len(queries)
+    if n == 3:
+        weights = [0.22, 0.56, 0.22]
+    else:
+        edge = 0.12
+        weights = [edge] + [(1 - 2 * edge) / (n - 2)] * (n - 2) + [edge]
     min_seg = 2.2
     raw = [max(duration * w, min_seg) for w in weights]
     scale = duration / sum(raw)
@@ -325,7 +332,7 @@ def get_background(script: dict, duration: float):
             logger.warning("Segment '%s' komplett fehlgeschlagen (%s) -> prozedural", q, e)
             segments.append(_procedural(d, seed + q))
 
-    logger.info("Hintergrund: 3 Segmente (%s)", " / ".join(queries))
+    logger.info("Hintergrund: %d Segmente (%s)", len(queries), " / ".join(queries))
     from moviepy import concatenate_videoclips
     full = concatenate_videoclips(segments, method="compose")
     # Rundungsfehler ausgleichen, exakt auf Audiolänge
