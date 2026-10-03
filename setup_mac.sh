@@ -35,6 +35,7 @@ echo "[3/7] Python-Pakete installieren (2-3 Min)..."
 pip3 install "setuptools==68.2.2" -q
 pip3 install -r requirements.txt -q
 pip3 install piper-tts -q
+bash install_tiktok_uploader.sh
 echo "      ✓ Python-Pakete fertig"
 
 # ── 4. Browser für TikTok-Upload ─────────────────────────────────────────────

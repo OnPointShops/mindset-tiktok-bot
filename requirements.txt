@@ -16,8 +16,16 @@ requests>=2.32.0           # Pexels Stock-Footage Download
 faster-whisper>=1.0.3      # Whisper-Transkription für Burn-in Untertitel (schneller als openai-whisper)
 
 # --- TikTok Upload ---
-tiktokautouploader>=0.1.0
-phantomwright
+# ACHTUNG: tiktokautouploader NICHT hier auflisten!
+# Es zieht als Hard-Dependency "inference" (Roboflow CV-Paket) mit extrem weiten,
+# lose gepinnten Versions-Ranges (fastapi, boto3, opencv, huggingface_hub, imageio, ...).
+# Sobald irgendein anderer Eintrag in dieser Datei sich ändert, erzwingt pip eine komplette
+# Neu-Auflösung des gesamten Baums inkl. bereits installierter Pakete -> stundenlanges
+# Backtracking/Hänger. Deshalb wird tiktokautouploader IMMER separat mit --no-deps
+# installiert (siehe setup_mac.sh bzw. install_tiktok_uploader.sh). Die paar echten
+# Laufzeit-Abhängigkeiten, die es tatsächlich braucht, stehen stattdessen hier explizit:
+phantomwright               # Browser-Steuerung fürs Upload (leichtgewichtig, kein Konflikt)
+scikit-learn>=0.24.0        # von tiktokautouploader intern genutzt
 
 # --- Content-Analyse (echte View-Zahlen vom eigenen Profil holen) ---
 playwright>=1.45.0      # nach Installation einmalig: playwright install chromium
