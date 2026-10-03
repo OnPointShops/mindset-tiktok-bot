@@ -86,6 +86,7 @@ Gib AUSSCHLIESSLICH valides JSON zurück, keine Markdown-Codeblöcke, kein Flie�
   "caption": "...",
   "hashtags": ["...", "..."],
   "format": "das verwendete Format-Label",
+  "cover_slogan": "3-8 Wörter, wie von Hand auf eine Handfläche geschrieben: die Kernbotschaft als roher, zitierfähiger Slogan (darf zweiteilig sein, z.B. 'Sie sagen: Steh auf. Dann sehen sie dich fallen.'). Nicht identisch mit dem Hook, aber gleiche Aussage; keine Hashtags, keine Emojis.",
   "visual_queries": [
     "3-5 ENGLISCHE Suchwörter fürs Hintergrund-Stockvideo passend zum HOOK/Einstieg",
     "3-5 ENGLISCHE Suchwörter passend zur MITTE des BODY (der Kern-Gedanke)",

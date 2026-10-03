@@ -1,5 +1,6 @@
 """Erzeugt ein Titelbild (1080x1920 PNG) zum Thema: Hintergrund + Hook-Text. Kein Key nötig."""
 import logging
+import os
 import textwrap
 from pathlib import Path
 
@@ -26,7 +27,22 @@ def find_font(size: int):
     return ImageFont.load_default(size=size)
 
 
+COVER_STYLE = os.getenv("COVER_STYLE", "hand")  # "hand" = Slogan auf der Handfläche | "poster" = prozedural
+
+
 def make_cover(script: dict, out_path: str) -> str:
+    """Hand-Cover (Slogan wie mit Edding auf die Handfläche geschrieben); bei jedem Fehler
+    (kein Pixabay-Key, kein Handfoto gefunden, ...) fällt es auf das prozedurale Poster zurück."""
+    if COVER_STYLE == "hand":
+        try:
+            import hand_cover
+            return hand_cover.make_hand_cover(script, out_path)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Hand-Cover fehlgeschlagen (%s) -> Poster-Cover", e)
+    return _poster_cover(script, out_path)
+
+
+def _poster_cover(script: dict, out_path: str) -> str:
     bg = backgrounds._procedural(4.0, script.get("topic", "x") + script.get("hook", ""))
     frame = bg.get_frame(3.0)
     if backgrounds.VISUAL_STYLE == "street_bw":
