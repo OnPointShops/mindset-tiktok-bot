@@ -28,6 +28,9 @@ phantomwright               # Browser-Steuerung fürs Upload (leichtgewichtig, k
 scikit-learn>=0.24.0        # von tiktokautouploader intern genutzt
 
 # --- Content-Analyse (echte View-Zahlen vom eigenen Profil holen) ---
-playwright>=1.45.0      # nach Installation einmalig: playwright install chromium
+# Version gedeckelt: Playwright >=1.55 liefert für Chromium keine Builds mehr für
+# macOS 13 (Ventura) - verlangt macOS 14+. 1.48 ist die letzte Linie mit vollem
+# mac13-Support. Nach Installation einmalig: playwright install chromium
+playwright>=1.45.0,<1.55.0
 
 edge-tts>=6.1.0          # Kostenlose Microsoft-Neuralstimmen (Default-TTS)
