@@ -164,20 +164,39 @@ def _mix_music(voice_path: str, script: dict) -> str:
     import subprocess
     try:
         import music
-        track = music.get_music_track(AudioFileClip(voice_path).duration,
-                                       script.get("topic", "") + script.get("hook", ""))
+        duration = AudioFileClip(voice_path).duration
+        track = music.get_music_track(duration, script.get("topic", "") + script.get("hook", ""))
         if not track or not shutil.which("ffmpeg"):
             return voice_path
-        out = voice_path.replace(".wav", "_mixed.wav")
         gain = music.MUSIC_GAIN_DB
-        # Musik auf Stimmlänge, leiser, und per sidechaincompress von der Stimme "weggedrückt"
-        fc = (f"[1:a]volume={gain}dB,aloop=loop=-1:size=2e9[m];"
+
+        # Schritt 1: Musik auf EXAKTE, ENDLICHE Stimmlänge bringen (eigener, einfacher Schritt).
+        # Der alte Code hat das inline im selben Filtergraph mit aloop(size=2e9) gemacht - das
+        # kann ffmpeg eine "unendliche" Laufzeit für den Musikstream vorspiegeln und in
+        # Kombination mit sidechaincompress zu Aussetzern/Stille in der zweiten Hälfte führen.
+        # Jetzt: Musik VORHER auf feste Länge loopen+zuschneiden -> beide Inputs sind endlich
+        # und exakt gleich lang, bevor sidechaincompress überhaupt ins Spiel kommt.
+        fitted = voice_path.replace(".wav", "_musicfit.wav")
+        r0 = subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error", "-stream_loop", "-1", "-i", track,
+             "-t", f"{duration:.3f}", "-ar", "24000", "-ac", "1", fitted],
+            capture_output=True, timeout=60,
+        )
+        if r0.returncode != 0 or not Path(fitted).exists():
+            logger.warning("Musik-Vorbereitung fehlgeschlagen, Stimme pur: %s",
+                           r0.stderr.decode(errors="replace")[:200])
+            return voice_path
+
+        out = voice_path.replace(".wav", "_mixed.wav")
+        fc = (f"[1:a]volume={gain}dB[m];"
               f"[m][0:a]sidechaincompress=threshold=0.03:ratio=8:attack=5:release=300[mc];"
               f"[0:a][mc]amix=inputs=2:duration=first:dropout_transition=0,"
               f"dynaudnorm=f=200[a]")
-        r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", voice_path, "-i", track,
-                            "-filter_complex", fc, "-map", "[a]", "-ar", "24000", out],
+        r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", voice_path, "-i", fitted,
+                            "-filter_complex", fc, "-map", "[a]", "-t", f"{duration:.3f}",
+                            "-ar", "24000", out],
                            capture_output=True, timeout=120)
+        Path(fitted).unlink(missing_ok=True)
         if r.returncode != 0 or not Path(out).exists():
             logger.warning("Musik-Mix fehlgeschlagen, Stimme pur: %s", r.stderr.decode(errors="replace")[:200])
             return voice_path
