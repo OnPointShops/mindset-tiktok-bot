@@ -158,6 +158,15 @@ def _fit(clip: VideoFileClip, duration: float):
     return clip.subclipped(0, duration)
 
 
+def _slow_zoom(clip, max_zoom=1.09):
+    """Leichter, konstanter Zoom-in übers ganze Clip-Segment -> wirkt geschnitten/dynamisch
+    statt wie ein stehendes Standbild, auch bei echtem Stock-Footage (nicht nur Ken Burns
+    auf Fotos). Zoomt um das Zentrum, damit nichts aus dem 1080x1920-Frame rutscht."""
+    dur = max(clip.duration, 0.1)
+    zoomed = clip.resized(lambda t: 1.0 + (max_zoom - 1.0) * min(t / dur, 1.0))
+    return zoomed.with_position(("center", "center"))
+
+
 def _download(url: str, name: str) -> str:
     path = str(config.VIDEO_DIR / f"_bg_{name}.mp4")
     Path(path).write_bytes(requests.get(url, timeout=90).content)
@@ -247,12 +256,13 @@ def _fit_image(clip):
 
 
 def _sequence(paths, duration):
-    """Mehrere Clips nacheinander auf Gesamtlänge, jeder gecroppt auf 1080x1920."""
+    """Mehrere Clips nacheinander auf Gesamtlänge, jeder gecroppt auf 1080x1920 + leichter
+    Zoom pro Clip (wirkt geschnitten/dynamisch statt wie ein stehendes Standbild)."""
     from moviepy import VideoFileClip, concatenate_videoclips
     per = max(duration / len(paths), 2.5)
     parts = []
     for pth in paths:
-        c = _fit(VideoFileClip(pth).without_audio(), per)
+        c = _slow_zoom(_fit(VideoFileClip(pth).without_audio(), per))
         parts.append(c)
     seq = concatenate_videoclips(parts)
     if seq.duration < duration:
@@ -261,33 +271,65 @@ def _sequence(paths, duration):
     return seq.subclipped(0, duration)
 
 
-def get_background(script: dict, duration: float):
-    """1080x1920-Hintergrund in Audiolänge, cineastisch abgedunkelt. Reihenfolge: Pixabay-Video ->
-    Pixabay-Bild (Ken Burns) -> prozedural. Fällt immer auf etwas zurück."""
-    query = script.get("visual_query") or "cinematic motivation"
+def _segment_clip(query: str, duration: float, topic_seed: str):
+    """Liefert EIN Hintergrund-Segment (ohne Grading/Overlay) der exakten Länge `duration`
+    für eine einzelne visual_query. Fallback-Kette pro Segment: Pixabay-Video -> Pixabay-Bild
+    (Ken Burns) -> Pexels -> prozedural. Fällt also segment-weise zurück, nie für das ganze
+    Video auf einmal, damit ein einzelner schlechter Treffer nicht den ganzen Clip ruiniert."""
     if BG_PROVIDER in ("auto", "pixabay") and PIXABAY_API_KEY:
         try:
-            clips = _pixabay_clips(query, n=3)
-            logger.info("Hintergrund: %d Pixabay-Clips zu '%s'", len(clips), query)
-            return _cinematic_overlay(_sequence(clips, duration), duration)
+            clips = _pixabay_clips(query, n=2)
+            return _sequence(clips, duration)
         except Exception as e:  # noqa: BLE001
-            logger.warning("Pixabay-Videos fehlgeschlagen (%s) -> versuche Bilder", e)
+            logger.warning("Pixabay-Videos für '%s' fehlgeschlagen (%s) -> Bilder", query, e)
         try:
             from moviepy import concatenate_videoclips
-            imgs = _pixabay_images(query, n=3)
+            imgs = _pixabay_images(query, n=2)
             per = max(duration / len(imgs), 2.5)
             seq = concatenate_videoclips([_kenburns(i, per) for i in imgs])
             if seq.duration < duration:
                 seq = concatenate_videoclips([seq] * (int(duration // seq.duration) + 1))
-            logger.info("Hintergrund: %d Pixabay-Bilder (Ken Burns)", len(imgs))
-            return _cinematic_overlay(seq.subclipped(0, duration), duration)
+            return seq.subclipped(0, duration)
         except Exception as e:  # noqa: BLE001
-            logger.warning("Pixabay-Bilder fehlgeschlagen (%s) -> prozedural", e)
+            logger.warning("Pixabay-Bilder für '%s' fehlgeschlagen (%s) -> Pexels", query, e)
     if BG_PROVIDER in ("auto", "pexels") and config.PEXELS_API_KEY:
         try:
             from moviepy import VideoFileClip
-            return _cinematic_overlay(_fit(VideoFileClip(_pexels(query, duration)), duration), duration)
+            return _slow_zoom(_fit(VideoFileClip(_pexels(query, duration)), duration))
         except Exception as e:  # noqa: BLE001
-            logger.warning("Pexels fehlgeschlagen (%s) -> prozedural", e)
-    logger.info("Hintergrund: prozedural (kein Stock-Treffer)")
-    return _cinematic_overlay(_procedural(duration, script.get("topic", "x") + script.get("hook", "")), duration)
+            logger.warning("Pexels für '%s' fehlgeschlagen (%s) -> prozedural", query, e)
+    return _procedural(duration, topic_seed + query)
+
+
+def get_background(script: dict, duration: float):
+    """1080x1920-Hintergrund in Audiolänge, cineastisch abgedunkelt. Nutzt 3 verschiedene
+    visual_queries (Hook / Body-Mitte / CTA), proportional über die Dauer verteilt, statt
+    EINER Query fürs ganze Video -> die Bildsprache entwickelt sich mit dem Text statt
+    beliebig irgendein Clip-Wechsel mitten im Satz."""
+    queries = script.get("visual_queries") or [script.get("visual_query") or "cinematic motivation"] * 3
+    queries = (queries + queries[-1:] * 3)[:3] if queries else ["cinematic motivation"] * 3
+    seed = script.get("topic", "x") + script.get("hook", "")
+
+    # Gewichtung: Hook kurz & knackig, Body-Mitte am längsten (meiste Sprechzeit), CTA kurz.
+    weights = [0.22, 0.56, 0.22]
+    min_seg = 2.2
+    raw = [max(duration * w, min_seg) for w in weights]
+    scale = duration / sum(raw)
+    durations = [d * scale for d in raw]
+
+    segments = []
+    for q, d in zip(queries, durations):
+        try:
+            segments.append(_segment_clip(q, d, seed))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Segment '%s' komplett fehlgeschlagen (%s) -> prozedural", q, e)
+            segments.append(_procedural(d, seed + q))
+
+    logger.info("Hintergrund: 3 Segmente (%s)", " / ".join(queries))
+    from moviepy import concatenate_videoclips
+    full = concatenate_videoclips(segments, method="compose")
+    # Rundungsfehler ausgleichen, exakt auf Audiolänge
+    if full.duration < duration:
+        full = concatenate_videoclips([full, segments[-1]], method="compose")
+    full = full.subclipped(0, duration)
+    return _cinematic_overlay(full, duration)

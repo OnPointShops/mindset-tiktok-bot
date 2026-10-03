@@ -112,50 +112,110 @@ def get_word_timings(audio_path: str, text: str, duration: float) -> list[dict]:
     return out
 
 
+# Kurze deutsche Stoppwörter -> werden nie als Emphase-Wort gewählt, auch wenn sie
+# zufällig das längste Wort in der Gruppe wären (praktisch selten, aber zur Sicherheit).
+_STOPWORDS = {"der", "die", "das", "und", "oder", "aber", "ist", "sind", "war", "waren",
+              "ein", "eine", "einen", "einem", "nicht", "du", "ich", "er", "sie", "es",
+              "dein", "deine", "mein", "meine", "für", "mit", "von", "auf", "zu", "im",
+              "in", "an", "am", "wie", "was", "wenn", "dann", "nur", "noch", "schon"}
+
+# Blutrot/Amber-Akzent fürs Schlüsselwort je Caption-Gruppe: ein einzelner Farbfleck auf
+# sonst reinem Schwarz-Weiß (street_bw) bzw. Weiß (cinematic) -> klassischer "Sin City"-
+# Effekt, zieht den Blick genau auf das Wort, das den Gedanken trägt.
+ACCENT_COLOR = (214, 40, 40, 255)
+
+
 def _group_words_for_captions(words: list[dict], group_size=3) -> list[dict]:
-    """Fasst Wörter zu kurzen, TikTok-typischen Caption-Häppchen zusammen (2-4 Wörter)."""
+    """Fasst Wörter zu kurzen, TikTok-typischen Caption-Häppchen zusammen (2-4 Wörter) und
+    markiert pro Gruppe das stärkste Wort (längstes Nicht-Stoppwort) für die Akzentfarbe."""
     groups = []
     for i in range(0, len(words), group_size):
         chunk = words[i:i + group_size]
         if not chunk:
             continue
+        texts = [w["word"].upper() for w in chunk]
+        candidates = [j for j, w in enumerate(chunk) if w["word"].lower() not in _STOPWORDS]
+        pool = candidates or list(range(len(chunk)))
+        emphasis_idx = max(pool, key=lambda j: len(chunk[j]["word"]))
         groups.append({
-            "text": " ".join(w["word"] for w in chunk).upper(),
+            "words": texts,
+            "emphasis_idx": emphasis_idx,
             "start": chunk[0]["start"],
             "end": chunk[-1]["end"],
         })
     return groups
 
 
-def _text_clip(text: str, font_size: int, fill, y_frac: float, start: float, dur: float,
-               max_w_frac: float = 0.88, stroke: int = 8):
-    """Text mit dicker Umrandung per Pillow (kein moviepy-TextClip: schneidet Umlaute/Unterlängen ab)."""
+def _pop_in(clip, base_x: int, base_y: int, pop_dur=0.12):
+    """Kurzer Scale-Pop beim Erscheinen (1.18 -> 1.0) statt starrem Einblenden -> Captions
+    wirken geschnitten/energiegeladen statt wie Untertitel aus einem Textfeld. Position wird
+    pro Frame so verschoben, dass die Mitte des Texts während des Pops fix bleibt."""
+    start_scale, dur = 1.18, max(pop_dur, 0.02)
+    w0, h0 = clip.w, clip.h
+
+    def factor(t):
+        return 1.0 if t >= dur else start_scale + (1.0 - start_scale) * (t / dur)
+
+    def pos(t):
+        f = factor(t)
+        return (base_x - (w0 * f - w0) / 2, base_y - (h0 * f - h0) / 2)
+
+    return clip.resized(factor).with_position(pos)
+
+
+def _text_clip(text_or_words, font_size: int, fill, y_frac: float, start: float, dur: float,
+               max_w_frac: float = 0.88, stroke: int = 8, emphasis_idx: int | None = None,
+               pop: bool = False):
+    """Text mit dicker Umrandung per Pillow (kein moviepy-TextClip: schneidet Umlaute/Unterlängen ab).
+    text_or_words: entweder ein String (alter Pfad, z.B. Hook) oder eine Liste von Wörtern
+    (Caption-Gruppe) — dann wird emphasis_idx in ACCENT_COLOR statt `fill` gezeichnet."""
     from PIL import Image, ImageDraw
     import numpy as np
     from moviepy import ImageClip
     font = cover.find_font(font_size)
     max_w = int(config.VIDEO_WIDTH * max_w_frac)
     probe = ImageDraw.Draw(Image.new("RGBA", (10, 10)))
-    lines, cur = [], ""
-    for word in text.split():
+
+    words = text_or_words if isinstance(text_or_words, list) else text_or_words.split()
+    # Zeilenumbruch, aber Wort-Index je Zeile merken (für die Akzentfarbe nach dem Umbruch).
+    lines, cur_words, cur = [], [], ""
+    for idx, word in enumerate(words):
         trial = (cur + " " + word).strip()
         if probe.textlength(trial, font=font) <= max_w - 2 * stroke or not cur:
             cur = trial
+            cur_words.append(idx)
         else:
-            lines.append(cur)
-            cur = word
-    if cur:
-        lines.append(cur)
+            lines.append(cur_words)
+            cur, cur_words = word, [idx]
+    if cur_words:
+        lines.append(cur_words)
+
     line_h = int(font_size * 1.25)
     h = line_h * len(lines) + 2 * stroke + 10
     img = Image.new("RGBA", (config.VIDEO_WIDTH, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    for i, ln in enumerate(lines):
+    for i, idxs in enumerate(lines):
+        ln = " ".join(words[j] for j in idxs)
         x = (config.VIDEO_WIDTH - d.textlength(ln, font=font)) / 2
-        d.text((x, stroke + i * line_h), ln, font=font, fill=fill,
-               stroke_width=stroke, stroke_fill=(0, 0, 0, 255))
-    return (ImageClip(np.array(img)).with_start(start).with_duration(max(dur, 0.2))
-            .with_position((0, int(config.VIDEO_HEIGHT * y_frac))))
+        if emphasis_idx is None or emphasis_idx not in idxs:
+            d.text((x, stroke + i * line_h), ln, font=font, fill=fill,
+                   stroke_width=stroke, stroke_fill=(0, 0, 0, 255))
+        else:
+            # Wortweise zeichnen, damit genau EIN Wort die Akzentfarbe bekommt.
+            cx = x
+            for j in idxs:
+                w_txt = words[j]
+                col = ACCENT_COLOR if j == emphasis_idx else fill
+                d.text((cx, stroke + i * line_h), w_txt, font=font, fill=col,
+                       stroke_width=stroke, stroke_fill=(0, 0, 0, 255))
+                cx += d.textlength(w_txt + " ", font=font)
+
+    base_y = int(config.VIDEO_HEIGHT * y_frac)
+    clip = (ImageClip(np.array(img)).with_start(start).with_duration(max(dur, 0.2))
+            .with_position((0, base_y)))
+    if pop:
+        clip = _pop_in(clip, base_x=0, base_y=base_y)
+    return clip
 
 
 def _mix_music(voice_path: str, script: dict) -> str:
@@ -229,13 +289,14 @@ def build_video(script: dict, audio_path: str, output_path: str) -> str:
     hook_fill = (255, 255, 255, 255) if backgrounds.VISUAL_STYLE == "street_bw" else (255, 235, 90, 255)
 
     caption_clips = [
-        _text_clip(g["text"], 84, (255, 255, 255, 255), 0.66, g["start"], max(g["end"] - g["start"], 0.3))
+        _text_clip(g["words"], 84, (255, 255, 255, 255), 0.66, g["start"],
+                   max(g["end"] - g["start"], 0.3), emphasis_idx=g["emphasis_idx"], pop=True)
         for g in caption_groups
     ]
 
     # 3. Hook-Overlay für die ersten 1.8s (Pattern-Interrupt oben im Bild)
     hook_clip = _text_clip(script.get("hook", "").upper(), 96, hook_fill, 0.16,
-                           0, min(1.8, duration), max_w_frac=0.9, stroke=9)
+                           0, min(1.8, duration), max_w_frac=0.9, stroke=9, pop=True)
 
     final = CompositeVideoClip([bg, hook_clip, *caption_clips], size=(config.VIDEO_WIDTH, config.VIDEO_HEIGHT))
     final.write_videofile(

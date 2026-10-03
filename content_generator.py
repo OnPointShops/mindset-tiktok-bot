@@ -37,15 +37,45 @@ nicht danach optimieren, die Stimme/Message trägt das Video.
 - Der letzte Satz darf inhaltlich/emotional lose zum Hook zurückführen (Loop-Potenzial = \
 Algorithmus-Bonus, da das Video beim Re-Watch weiterläuft statt neu zu starten).
 
+KLISCHEE-VERBOT (diese/ähnliche Sätze sind verbrannt, NIE verwenden):
+- "Der Unterschied zwischen Siegern und Verlierern ist..."
+- "Niemand wird dich retten" / "Niemand kommt und rettet dich"
+- "Du bist stärker als du denkst" / "Glaub an dich"
+- "Erfolg ist eine Reise, keine Reise... äh Ziel" (und jede Variante davon)
+- "Jeden Tag ein bisschen besser" / "1% besser jeden Tag" (ausgelutscht)
+- irgendein Satz, der genauso gut unter JEDEM beliebigen Mindset-Video stehen könnte \
+(der Test: wenn der Satz nicht erkennbar zu DIESEM Thema gehört, ist er zu generisch -> umschreiben)
+
+TIEFE statt Plattitüde:
+- Jeder Gedanke braucht ein KONKRETES Bild, eine Zahl, eine Situation oder einen Moment \
+(keine abstrakten Behauptungen ohne Beleg). Schlecht: "Disziplin schlägt Motivation." \
+Gut: "Motivation hält bis zum ersten Regentag. Disziplin steht trotzdem um 5 Uhr auf."
+- Zeig eine Perspektive, die NICHT die naheliegendste ist (Contrarian-Take) oder eine, \
+die im ersten Moment unangenehm/unbequem ist, bevor sie Sinn ergibt.
+- Variiere Satzrhythmus bewusst: kurz-kurz-lang oder lang-kurz-kurz, nie drei gleich lange \
+Sätze hintereinander (klingt sonst wie eine Liste, nicht wie eine Erkenntnis).
+
+ARBEITSWEISE (nicht im Output zeigen, nur befolgen): Entwirf den Hook innerlich in 2 \
+Varianten (einen Contrarian-Take, einen Curiosity-Gap), vergleiche beide gegen die \
+Viralitäts-Regeln oben und das Klischee-Verbot, und gib NUR die stärkere Variante aus.
+
 Regeln für jedes Skript:
 - HOOK: max 8 Wörter, in den ersten 1.5 Sekunden muss der Zuschauer hängen bleiben. \
 Nutze Muster wie direkte Ansprache, ein überraschendes Statement, oder eine unbequeme Wahrheit. \
 Niemals "Hey Leute" oder ähnliche Floskeln.
-- BODY: 3-5 kurze Sätze, sprechbar in 12-20 Sekunden, jeder Satz ist ein eigenständiger \
-Gedanke (wichtig fürs Auto-Caption-Timing). Direkte, klare Sprache, keine Füllwörter.
+- BODY: 4-6 kurze Sätze, sprechbar in 16-26 Sekunden, jeder Satz ist ein eigenständiger \
+Gedanke (wichtig fürs Auto-Caption-Timing UND für die Bild-Wechsel, die am Satzende \
+geschnitten werden). Direkte, klare Sprache, keine Füllwörter, mindestens EIN konkretes \
+Bild/eine Szene (siehe TIEFE oben).
 - CTA: eine Zeile, die zu Kommentar/Share/Follow anregt, ohne verzweifelt zu wirken.
 - CAPTION: die Video-Beschreibung für TikTok (1-2 Sätze + relevante Frage an die Community)
 - HASHTAGS: 5-6 Hashtags, Mix aus breit (#mindset #motivation) und spezifisch zum Thema
+
+Beispiel für den geforderten Ton (Thema/Wortlaut NICHT kopieren, nur Stil/Tiefe als Maßstab):
+Hook: "Die meisten geben genau einen Tag vor dem Durchbruch auf."
+Body: "Du kennst nicht die Zahl der Versuche vor einem Erfolg. Du siehst nur den einen, \
+der geklappt hat. Der Typ, der dich belächelt hat, hat beim fünften Rückschlag aufgehört. \
+Du bist beim siebten noch da. Das ist der ganze Unterschied."
 
 Gib AUSSCHLIESSLICH valides JSON zurück, keine Markdown-Codeblöcke, kein Fließtext davor/danach:
 {
@@ -56,10 +86,23 @@ Gib AUSSCHLIESSLICH valides JSON zurück, keine Markdown-Codeblöcke, kein Flie�
   "caption": "...",
   "hashtags": ["...", "..."],
   "format": "das verwendete Format-Label",
-  "visual_query": "3-5 ENGLISCHE Suchwörter fürs Hintergrund-Stockvideo: GRAFISCHE, kontraststarke Motive von MENSCHEN IN DER BEWEGUNG DES KAMPFS/AUFSTEHENS, die auch in Schwarz-Weiß stark wirken. Beispiele: 'man getting up after falling struggle', 'exhausted athlete standing up determination', 'person climbing out of pit effort', 'boxer rising after knockdown', 'man walking through smoke fire silhouette', 'runner collapsing pushing through pain', 'hands gripping ledge climbing up'. IMMER ein Mensch in echter körperlicher Anstrengung/im Moment des Wiederaufstehens, NIE nur Landschaft oder Abstraktes.",
+  "visual_queries": [
+    "3-5 ENGLISCHE Suchwörter fürs Hintergrund-Stockvideo passend zum HOOK/Einstieg",
+    "3-5 ENGLISCHE Suchwörter passend zur MITTE des BODY (der Kern-Gedanke)",
+    "3-5 ENGLISCHE Suchwörter passend zum CTA/Ende (Auflösung, Aufstehen, Entschlossenheit)"
+  ],
   "full_voiceover_text": "HOOK. BODY. CTA — als ein zusammenhängender, natürlich \
 sprechbarer Text ohne Labels."
 }
+
+Für visual_queries IMMER: GRAFISCHE, kontraststarke Motive von MENSCHEN IN DER BEWEGUNG DES \
+KAMPFS/AUFSTEHENS, die auch in Schwarz-Weiß stark wirken. Beispiele: 'man getting up after \
+falling struggle', 'exhausted athlete standing up determination', 'person climbing out of pit \
+effort', 'boxer rising after knockdown', 'man walking through smoke fire silhouette', 'runner \
+collapsing pushing through pain', 'hands gripping ledge climbing up'. Die drei Queries sollen \
+sich klar unterscheiden (nicht dreimal dasselbe Motiv) und zusammen einen kleinen Bogen \
+erzählen: Fall/Kampf -> Anstrengung -> Aufstehen/Entschlossenheit. IMMER ein Mensch in echter \
+körperlicher Anstrengung, NIE nur Landschaft oder Abstraktes.
 """
 
 
@@ -237,6 +280,21 @@ def _pick_format(strategy: dict, history: list[dict]) -> str:
     return min(formats, key=lambda f: last_used[f])
 
 
+def _normalize_visual_queries(script: dict) -> dict:
+    """Stellt sicher, dass visual_queries (Liste von 3) existiert — auch für alte
+    Skripte aus dem Offline-Vorrat oder Cache, die noch das alte Einzelfeld
+    visual_query haben."""
+    vq = script.get("visual_queries")
+    if isinstance(vq, list) and len(vq) >= 1:
+        while len(vq) < 3:
+            vq.append(vq[-1])
+        script["visual_queries"] = vq[:3]
+        return script
+    single = script.get("visual_query") or "person struggle rising determination"
+    script["visual_queries"] = [single, single, single]
+    return script
+
+
 def generate_script(theme_hint: str | None = None) -> dict:
     """Erzeugt ein einzelnes Skript. theme_hint optional, sonst wählt Claude aus Trends."""
     trends = _load_trends()
@@ -269,18 +327,18 @@ Erstelle EIN neues Skript nach den Systemregeln. Sei konkret, keine generischen 
 
     if AI_BACKEND == "offline":
         used = {h.get("topic") for h in history}
-        return _offline_script(fmt, used)
+        return _normalize_visual_queries(_offline_script(fmt, used))
 
     try:
-        raw = generate_llm(SYSTEM_PROMPT, user_prompt, max_tokens=700)
+        raw = generate_llm(SYSTEM_PROMPT, user_prompt, max_tokens=900)
         script = _extract_json(raw)
     except Exception as e:  # noqa: BLE001  (kein Key / Dienst weg -> Offline-Vorrat)
         logger.warning("KI nicht verfügbar (%s) -> Offline-Vorrat", e)
         used = {h.get("topic") for h in history}
-        return _offline_script(fmt, used)
+        return _normalize_visual_queries(_offline_script(fmt, used))
     script["generated_at"] = datetime.now().isoformat()
     script.setdefault("format", fmt)
-    return script
+    return _normalize_visual_queries(script)
 
 
 def generate_batch(n: int, save=True) -> list[dict]:
