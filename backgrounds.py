@@ -21,6 +21,9 @@ import config
 logger = logging.getLogger("backgrounds")
 PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY", "")
 BG_PROVIDER = os.getenv("BG_PROVIDER", "auto")  # auto | procedural | pexels | pixabay
+# "street_bw"  -> raue Schwarz-Weiß-Optik wie Street-Art-Zitat-Poster (Beton, hoher Kontrast, Körnung)
+# "cinematic_color" -> der bisherige, farbige, dunkle Cinematic-Look
+VISUAL_STYLE = os.getenv("VISUAL_STYLE", "street_bw")
 
 # (oben, unten, Lichtfarbe) – dunkel & edel, damit weiße/gelbe Schrift immer lesbar bleibt
 PALETTES = [
@@ -70,14 +73,53 @@ def _procedural(duration: float, seed_text: str) -> VideoClip:
 
 
 _OVERLAY_CACHE = None
+_GRAIN_CACHE = None
+
+
+def _bw_grade_frame(frame):
+    """Rohe Schwarz-Weiß-Optik: entsättigt, kontraststark, leicht aufgehellte Schwarzwerte
+    (wie ein Beton-Wand-Foto) statt flaches Farbbild."""
+    gray = frame.astype(np.float32) @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
+    gray = (gray - 128.0) * 1.38 + 128.0  # Kontrast rauf
+    gray = np.clip(gray, 6, 249)  # nie ganz schwarz/weiß -> wirkt fotografiert, nicht geclippt
+    return np.repeat(gray[..., None], 3, axis=2).astype(np.uint8)
+
+
+def _apply_bw_grade(clip):
+    try:
+        return clip.image_transform(_bw_grade_frame)
+    except AttributeError:
+        return clip.fl_image(_bw_grade_frame)  # ältere moviepy-API als Fallback
+
+
+def _grain_layer(duration):
+    """Feines, leicht flackerndes Filmkorn -> roher, fotografierter Street-Art-Look."""
+    global _GRAIN_CACHE
+    from moviepy import VideoClip
+    W, H = config.VIDEO_WIDTH, config.VIDEO_HEIGHT
+    small_w, small_h = W // 3, H // 3
+    rng = np.random.default_rng(42)
+    tiles = rng.integers(90, 170, size=(6, small_h, small_w), dtype=np.uint8)
+
+    def make_frame(t):
+        tile = tiles[int(t * 12) % 6]
+        big = np.asarray(Image.fromarray(tile).resize((W, H), Image.NEAREST))
+        return np.repeat(big[..., None], 3, axis=2)
+
+    return VideoClip(make_frame, duration=duration)
 
 
 def _cinematic_overlay(clip, duration):
-    """Dunkle Vignette + Verlauf unten -> emotionaler Look + Text bleibt lesbar."""
+    """Vignette + Verlauf (+ im street_bw-Stil: Graustufen/Kontrast/Körnung wie ein
+    Beton-Wand-Zitat-Poster) -> emotionaler Look + Text bleibt lesbar."""
     global _OVERLAY_CACHE
     import numpy as np
     from PIL import Image
-    from moviepy import ImageClip
+    from moviepy import ImageClip, CompositeVideoClip
+
+    if VISUAL_STYLE == "street_bw":
+        clip = _apply_bw_grade(clip)
+
     if _OVERLAY_CACHE is None:
         W, H = config.VIDEO_WIDTH, config.VIDEO_HEIGHT
         ys, xs = np.mgrid[0:H, 0:W].astype(np.float32)
@@ -92,8 +134,13 @@ def _cinematic_overlay(clip, duration):
         rgba[..., 3] = (alpha * 255).astype(np.uint8)  # schwarz mit variabler Deckkraft
         _OVERLAY_CACHE = rgba
     ov = ImageClip(_OVERLAY_CACHE).with_duration(duration)
-    from moviepy import CompositeVideoClip
-    return CompositeVideoClip([clip, ov], size=(config.VIDEO_WIDTH, config.VIDEO_HEIGHT))
+    layers = [clip, ov]
+
+    if VISUAL_STYLE == "street_bw":
+        grain = _grain_layer(duration).with_opacity(0.05)
+        layers.append(grain)
+
+    return CompositeVideoClip(layers, size=(config.VIDEO_WIDTH, config.VIDEO_HEIGHT))
 
 
 

@@ -205,13 +205,17 @@ def build_video(script: dict, audio_path: str, output_path: str) -> str:
     words = get_word_timings(audio_path, script.get("full_voiceover_text", ""), duration)
     caption_groups = _group_words_for_captions(words, group_size=3)
 
+    # Street-Art-Poster-Stil: Hook & Captions beide weiß (wie die Beton-Wand-Zitate),
+    # kein Gelb-Akzent -> passt zur entsättigten Schwarz-Weiß-Grading der Hintergründe.
+    hook_fill = (255, 255, 255, 255) if backgrounds.VISUAL_STYLE == "street_bw" else (255, 235, 90, 255)
+
     caption_clips = [
         _text_clip(g["text"], 84, (255, 255, 255, 255), 0.66, g["start"], max(g["end"] - g["start"], 0.3))
         for g in caption_groups
     ]
 
     # 3. Hook-Overlay für die ersten 1.8s (Pattern-Interrupt oben im Bild)
-    hook_clip = _text_clip(script.get("hook", "").upper(), 96, (255, 235, 90, 255), 0.16,
+    hook_clip = _text_clip(script.get("hook", "").upper(), 96, hook_fill, 0.16,
                            0, min(1.8, duration), max_w_frac=0.9, stroke=9)
 
     final = CompositeVideoClip([bg, hook_clip, *caption_clips], size=(config.VIDEO_WIDTH, config.VIDEO_HEIGHT))

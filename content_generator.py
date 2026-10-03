@@ -38,7 +38,7 @@ Gib AUSSCHLIESSLICH valides JSON zurück, keine Markdown-Codeblöcke, kein Flie�
   "caption": "...",
   "hashtags": ["...", "..."],
   "format": "das verwendete Format-Label",
-  "visual_query": "3-5 ENGLISCHE, cineastische & EMOTIONALE Suchwörter fürs Hintergrund-Stockvideo, die zur Kernaussage passen (Mensch/Natur/Bewegung, Licht, Stimmung). Beispiele: 'lone man walking foggy forest', 'runner sunrise silhouette determination', 'storm ocean waves dramatic', 'city lights night alone rain'. KEINE abstrakten Begriffe, immer ein konkretes Motiv mit Stimmung.",
+  "visual_query": "3-5 ENGLISCHE Suchwörter fürs Hintergrund-Stockvideo: GRAFISCHE, kontraststarke Motive, die auch in Schwarz-Weiß stark wirken (Silhouette, raue Textur, Grossstadt-Beton, Bewegung). Beispiele: 'man walking away silhouette alone', 'boxer wrapping hands gym', 'urban concrete wall texture gritty', 'lone figure city street night', 'storm ocean waves dramatic silhouette'. KEINE abstrakten Begriffe, immer ein konkretes Motiv mit roher, kämpferischer Stimmung.",
   "full_voiceover_text": "HOOK. BODY. CTA — als ein zusammenhängender, natürlich \
 sprechbarer Text ohne Labels."
 }
