@@ -181,6 +181,10 @@ def _mix_music(voice_path: str, script: dict) -> str:
         if r.returncode != 0 or not Path(out).exists():
             logger.warning("Musik-Mix fehlgeschlagen, Stimme pur: %s", r.stderr.decode(errors="replace")[:200])
             return voice_path
+        words_src = Path(voice_path + ".words.json")
+        if words_src.exists():
+            import shutil
+            shutil.copyfile(words_src, out + ".words.json")  # Timings dem neuen Pfad mitgeben
         logger.info("Musik untergemischt (%s dB)", gain)
         return out
     except Exception as e:  # noqa: BLE001
