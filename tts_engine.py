@@ -51,6 +51,9 @@ ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 # Vorgefertigte (premade) Stimmen laufen auch im KOSTENLOSEN Tarif (10.000 Zeichen/Monat, keine Kreditkarte).
 # Brian = tiefer, rauer Erzaehler (Trailer/Doku-Stil), Daniel = britischer Erzaehler, George = warm-rau, Adam = tief.
 ELEVEN_VOICE_ID = os.getenv("ELEVEN_VOICE_ID", "nPczCjzI2devNBz1zQrb")  # Brian
+ELEVEN_VOICE_NAME = os.getenv("ELEVEN_VOICE_NAME", "")  # z.B. "Leonard" -> ID wird automatisch in deinen Stimmen gesucht
+ELEVEN_MODEL = os.getenv("ELEVEN_MODEL", "eleven_multilingual_v2")  # v4: Modell-ID aus der ElevenLabs-Doku eintragen
+_ELEVEN_BRIAN = "nPczCjzI2devNBz1zQrb"
 ELEVEN_STABILITY = float(os.getenv("ELEVEN_STABILITY", "0.42"))   # niedriger = mehr Ausdruck/Dramatik
 ELEVEN_STYLE = float(os.getenv("ELEVEN_STYLE", "0.35"))           # Betonung/Pathos
 ELEVEN_SPEED = float(os.getenv("ELEVEN_SPEED", "0.92"))           # 0.7-1.2, leicht langsamer = gewichtig
@@ -287,27 +290,38 @@ def _tts_eleven(text: str, out_path: str) -> str:
         raise RuntimeError("ELEVENLABS_API_KEY fehlt in .env")
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg fehlt (fuer mp3->wav)")
-    body = {
+    voice_id = _eleven_resolve_voice()
+    base = {
         "text": text,
-        "model_id": "eleven_multilingual_v2",
-        "language_code": "de",
         "voice_settings": {"stability": ELEVEN_STABILITY, "similarity_boost": 0.8,
                            "style": ELEVEN_STYLE, "use_speaker_boost": True, "speed": ELEVEN_SPEED},
     }
-    r = requests.post(
-        f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVEN_VOICE_ID}/with-timestamps",
-        params={"output_format": "mp3_44100_128"},
-        headers={"xi-api-key": ELEVEN_API_KEY, "Content-Type": "application/json"},
-        json=body, timeout=120)
-    if r.status_code == 400 and "language_code" in r.text:
-        body.pop("language_code")
-        r = requests.post(
-            f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVEN_VOICE_ID}/with-timestamps",
-            params={"output_format": "mp3_44100_128"},
-            headers={"xi-api-key": ELEVEN_API_KEY, "Content-Type": "application/json"},
-            json=body, timeout=120)
-    if r.status_code != 200:
-        raise RuntimeError(f"ElevenLabs HTTP {r.status_code}: {r.text[:300]}")
+    headers = {"xi-api-key": ELEVEN_API_KEY, "Content-Type": "application/json"}
+
+    def _call(vid, model, with_lang=True):
+        body = dict(base, model_id=model)
+        if with_lang:
+            body["language_code"] = "de"
+        return requests.post(f"https://api.elevenlabs.io/v1/text-to-speech/{vid}/with-timestamps",
+                             params={"output_format": "mp3_44100_128"}, headers=headers, json=body, timeout=120)
+
+    r = None
+    # Reihenfolge: gewuenschte Stimme+Modell -> gleiche Stimme mit stabilem v2 -> Brian (immer gratis nutzbar)
+    attempts = [(voice_id, ELEVEN_MODEL, True), (voice_id, ELEVEN_MODEL, False),
+                (voice_id, "eleven_multilingual_v2", True), (_ELEVEN_BRIAN, "eleven_multilingual_v2", True)]
+    seen = set()
+    for vid, model, lang in attempts:
+        if (vid, model, lang) in seen:
+            continue
+        seen.add((vid, model, lang))
+        r = _call(vid, model, lang)
+        if r.status_code == 200:
+            break
+        logger.warning("ElevenLabs (%s / %s) HTTP %s: %s", vid[:6], model, r.status_code, r.text[:160])
+        if r.status_code == 401:
+            break
+    if r is None or r.status_code != 200:
+        raise RuntimeError(f"ElevenLabs HTTP {r.status_code if r is not None else '?'}: {r.text[:300] if r is not None else ''}")
     data = r.json()
     mp3 = out_path + ".mp3"
     Path(mp3).write_bytes(base64.b64decode(data["audio_base64"]))
@@ -324,6 +338,30 @@ def _tts_eleven(text: str, out_path: str) -> str:
         wj.unlink(missing_ok=True)
     logger.info("ElevenLabs TTS fertig (%s, %d Wort-Timings): %s", ELEVEN_VOICE_ID, len(words), out_path)
     return _apply_voice_fx(out_path)
+
+
+_eleven_voice_cache = {}
+
+
+def _eleven_resolve_voice() -> str:
+    """ELEVEN_VOICE_NAME (z.B. 'Leonard') -> voice_id aus 'Meine Stimmen'; sonst ELEVEN_VOICE_ID."""
+    if not ELEVEN_VOICE_NAME:
+        return ELEVEN_VOICE_ID
+    if ELEVEN_VOICE_NAME in _eleven_voice_cache:
+        return _eleven_voice_cache[ELEVEN_VOICE_NAME]
+    try:
+        r = requests.get("https://api.elevenlabs.io/v2/voices", params={"search": ELEVEN_VOICE_NAME, "page_size": 20},
+                         headers={"xi-api-key": ELEVEN_API_KEY}, timeout=30)
+        if r.status_code == 200:
+            for v in r.json().get("voices", []):
+                if ELEVEN_VOICE_NAME.lower() in v.get("name", "").lower():
+                    _eleven_voice_cache[ELEVEN_VOICE_NAME] = v["voice_id"]
+                    logger.info("ElevenLabs-Stimme gefunden: %s (%s)", v["name"], v["voice_id"])
+                    return v["voice_id"]
+        logger.warning("Stimme '%s' nicht in 'Meine Stimmen' gefunden (HTTP %s) -> ELEVEN_VOICE_ID", ELEVEN_VOICE_NAME, r.status_code)
+    except requests.RequestException as e:
+        logger.warning("Stimmensuche fehlgeschlagen: %s", e)
+    return ELEVEN_VOICE_ID
 
 
 def _words_from_alignment(al) -> list:
