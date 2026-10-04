@@ -90,8 +90,17 @@ def _street_marks(img):
     return Image.alpha_composite(img, layer)
 
 
-def render_background(parts: list[dict], duration: float, out_path: str, bw: bool = True,
-                      style: str = "street_bw") -> str:
+def render_background(parts, duration, out_path, bw=True, style="street_bw"):
+    """Erst mit Zoom; scheitert die lokale ffmpeg-Version daran, nochmal ohne Zoom (statisch, aber schnell)."""
+    try:
+        return _render(parts, duration, out_path, bw, style, zoom=True)
+    except RuntimeError as e:
+        logger.warning("ffmpeg mit Zoom fehlgeschlagen (%s) -> Versuch ohne Zoom", str(e)[:300])
+        return _render(parts, duration, out_path, bw, style, zoom=False)
+
+
+def _render(parts: list[dict], duration: float, out_path: str, bw: bool = True,
+            style: str = "street_bw", zoom: bool = True) -> str:
     """parts: [{"path": str, "dur": float, "image": bool}, ...] in Reihenfolge; Summe(dur) ~ duration.
     Schreibt ein stummes 1080x1920/30fps-H.264-Video exakt `duration` Sekunden lang nach out_path."""
     if not parts:
@@ -109,12 +118,12 @@ def render_background(parts: list[dict], duration: float, out_path: str, bw: boo
 
     chains = []
     for i, p in enumerate(parts):
-        z = 0.06 if p.get("image") else 0.09
+        z = (0.06 if p.get("image") else 0.09) if zoom else 0.0
         d = max(p["dur"], 0.5)
         # 1) mittig auf 9:16 zuschneiden, 2) EIN Skalierschritt mit Zoom (eval=frame), 3) auf 1080x1920 croppen
         chains.append(
             f"[{i}:v]crop='min(iw\\,ih*{W}/{H})':'min(ih\\,iw*{H}/{W})',setsar=1,fps={FPS},"
-            f"scale=w='{W}*(1+{z}*t/{d:.3f})':h='{H}*(1+{z}*t/{d:.3f})':eval=frame:flags=bilinear,"
+            f"scale=w='2*trunc({W}*(1+{z}*t/{d:.3f})/2)':h='2*trunc({H}*(1+{z}*t/{d:.3f})/2)':eval=frame:flags=bilinear,"
             f"crop={W}:{H},setpts=PTS-STARTPTS[v{i}]")
     concat_in = "".join(f"[v{i}]" for i in range(len(parts)))
     chains.append(f"{concat_in}concat=n={len(parts)}:v=1:a=0[cat]")
@@ -145,5 +154,5 @@ def render_background(parts: list[dict], duration: float, out_path: str, bw: boo
     r = subprocess.run(cmd, capture_output=True, timeout=900)
     Path(overlay).unlink(missing_ok=True)
     if r.returncode != 0 or not Path(out_path).exists():
-        raise RuntimeError("ffmpeg-Hintergrund fehlgeschlagen: " + r.stderr.decode(errors="replace")[-400:])
+        raise RuntimeError("ffmpeg-Hintergrund fehlgeschlagen: " + r.stderr.decode(errors="replace")[:500])
     return out_path

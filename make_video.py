@@ -21,6 +21,21 @@ import video_builder
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 
+
+class _RedactKeys(logging.Filter):
+    """Schwärzt API-Keys (…key=XYZ) in Logzeilen, damit sie nie im Terminal/Chat landen."""
+    import re as _re
+    _pat = _re.compile(r"(key=|xi-api-key[\"': ]+)[A-Za-z0-9_.\-]{12,}")
+
+    def filter(self, record):
+        record.msg = self._pat.sub(r"\1***", str(record.getMessage()))
+        record.args = ()
+        return True
+
+
+for _h in logging.getLogger().handlers:
+    _h.addFilter(_RedactKeys())
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print('Nutzung: python3 make_video.py "Thema/Briefing"')
