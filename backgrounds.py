@@ -322,6 +322,51 @@ def _segment_clip(query: str, duration: float, topic_seed: str):
     return _procedural(duration, topic_seed + query)
 
 
+def _collect_parts(queries, durations):
+    """Lädt je Segment 1-2 Stock-Clips (oder Fotos) und gibt die ffmpeg-Teile zurück:
+    [{"path","dur","image"}]. Segmente ohne Treffer leihen sich Material aus anderen Segmenten;
+    gar nichts gefunden -> leere Liste (dann greift der alte/prozedurale Pfad)."""
+    per_segment = []
+    for q, d in zip(queries, durations):
+        got = []
+        if BG_PROVIDER in ("auto", "pixabay") and PIXABAY_API_KEY:
+            try:
+                got = [(p, False) for p in _pixabay_clips(q, n=2)]
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Pixabay-Videos '%s': %s -> Fotos", q, e)
+                try:
+                    got = [(p, True) for p in _pixabay_images(q, n=2)]
+                except Exception as e2:  # noqa: BLE001
+                    logger.warning("Pixabay-Fotos '%s': %s", q, e2)
+        if not got and BG_PROVIDER in ("auto", "pexels") and config.PEXELS_API_KEY:
+            try:
+                got = [(_pexels(q, d), False)]
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Pexels '%s': %s", q, e)
+        per_segment.append(got)
+    pool = [g for seg in per_segment for g in seg]
+    if not pool:
+        return []
+    parts = []
+    for i, (got, d) in enumerate(zip(per_segment, durations)):
+        if not got:
+            got = [pool[i % len(pool)]]
+        each = d / len(got)
+        parts += [{"path": p, "dur": each, "image": img} for p, img in got]
+    return parts
+
+
+def _fast_background(queries, durations, duration):
+    """Kompletter Hintergrund in einem nativen ffmpeg-Durchgang. Gibt VideoFileClip oder None."""
+    import ffmpeg_bg
+    parts = _collect_parts(queries, durations)
+    if not parts:
+        return None
+    out = str(config.VIDEO_DIR / "_bg_render.mp4")
+    ffmpeg_bg.render_background(parts, duration, out, bw=(VISUAL_STYLE == "street_bw"))
+    return VideoFileClip(out).without_audio().subclipped(0, duration)
+
+
 def get_background(script: dict, duration: float):
     """1080x1920-Hintergrund in Audiolänge, cineastisch abgedunkelt. Nutzt 3 verschiedene
     visual_queries (Hook / Body-Mitte / CTA), proportional über die Dauer verteilt, statt
@@ -344,6 +389,17 @@ def get_background(script: dict, duration: float):
     raw = [max(duration * w, min_seg) for w in weights]
     scale = duration / sum(raw)
     durations = [d * scale for d in raw]
+
+    if os.getenv("BG_RENDER", "ffmpeg") == "ffmpeg":
+        try:
+            clip = _fast_background(queries, durations, duration)
+            if clip is not None:
+                logger.info("Hintergrund: %d Segmente nativ via ffmpeg gerendert (%s)",
+                            len(queries), " / ".join(queries))
+                return clip
+            logger.info("Kein Stock-Material gefunden -> prozeduraler Hintergrund")
+        except Exception as e:  # noqa: BLE001
+            logger.warning("ffmpeg-Hintergrund fehlgeschlagen (%s) -> klassischer Pfad", e)
 
     segments = []
     for q, d in zip(queries, durations):

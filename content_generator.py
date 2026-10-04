@@ -160,29 +160,47 @@ def _gen_gemini(system: str, user: str, max_tokens: int = 700) -> str:
         parts = data["candidates"][0]["content"].get("parts", [])
         return "".join(p.get("text", "") for p in parts)
 
-    for attempt in range(4):
-        model = _gemini_pick_model()
+    import time
+    primary = _gemini_pick_model()
+    # Bei Ueberlastung (503/429) durch Modelle rotieren statt nur zu warten
+    chain = [primary] + [m for m in ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash",
+                                     "gemini-flash-latest") if m != primary]
+    last_err = ""
+    for attempt in range(8):
+        model = chain[attempt % len(chain)]
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         body = {"systemInstruction": {"parts": [{"text": system}]},
                 "contents": [{"role": "user", "parts": [{"text": user}]}],
                 "generationConfig": gen_cfg}
-        r = requests.post(url, params={"key": GEMINI_API_KEY}, json=body, timeout=60)
+        try:
+            r = requests.post(url, params={"key": GEMINI_API_KEY}, json=body, timeout=60)
+        except requests.RequestException as e:
+            last_err = str(e)
+            time.sleep(3)
+            continue
         if r.status_code == 200:
-            return _parts_text(r.json())
-        if r.status_code in (429, 503) and attempt < 2:  # kurze Ueberlastung -> warten, neu
-            import time
-            wait = 4 * (attempt + 1)
-            logger.warning("Gemini ausgelastet (HTTP %s) -> warte %ds und versuche erneut", r.status_code, wait)
+            try:
+                txt = _parts_text(r.json())
+            except (KeyError, IndexError):
+                txt = ""
+            if txt.strip():
+                return txt
+            last_err = "leere Antwort"
+            continue
+        last_err = f"HTTP {r.status_code}: {r.text[:150]}"
+        if r.status_code in (429, 500, 502, 503, 504):
+            wait = min(3 * (attempt + 1), 15)
+            logger.warning("Gemini %s ausgelastet (HTTP %s) -> naechstes Modell in %ds", model, r.status_code, wait)
             time.sleep(wait)
             continue
-        if r.status_code == 404 and attempt < 2:
-            logger.warning("Gemini-Modell '%s' nicht verfügbar -> suche aktuelles", model)
-            _gemini_model_cache = _discover_model()
+        if r.status_code == 404:
+            logger.warning("Gemini-Modell '%s' nicht verfuegbar -> naechstes", model)
             continue
         if r.status_code == 400 and "thinking" in r.text.lower() and "thinkingConfig" in gen_cfg:
-            gen_cfg.pop("thinkingConfig")  # Modell erlaubt kein Abschalten -> ohne neu
+            gen_cfg.pop("thinkingConfig")
             continue
         raise RuntimeError(f"Gemini HTTP {r.status_code}: {r.text[:250]}")
+    raise RuntimeError(f"Gemini nach 8 Versuchen nicht erreichbar ({last_err})")
 
 
 def _gen_claude(system: str, user: str, max_tokens: int = 700) -> str:

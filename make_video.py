@@ -33,6 +33,10 @@ if __name__ == "__main__":
     print("1/4  Skript holen (Gemini, Thema vorgegeben) ...")
     script = content_generator.generate_script(theme_hint=theme_hint, length=length)
     src = script.get("source", "gemini/claude")
+    if src == "offline":
+        print("\nABBRUCH: Die KI war nicht erreichbar, das Offline-Skript passt NICHT zu deinem Thema.\n"
+              "Starte den gleichen Befehl in 1-2 Minuten nochmal (Gemini ist dann meist wieder frei).")
+        sys.exit(2)
     print(f"     Thema: {script['topic']}   (Quelle: {src})")
     print(f"     Hook:  {script['hook']}")
 

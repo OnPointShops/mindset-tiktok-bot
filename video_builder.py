@@ -14,8 +14,9 @@ import logging
 import requests
 from pathlib import Path
 
+import numpy as np
 from moviepy import (
-    VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip,
+    VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, VideoClip,
     concatenate_videoclips,
 )
 from faster_whisper import WhisperModel
@@ -163,15 +164,12 @@ def _pop_in(clip, base_x: int, base_y: int, pop_dur=0.12):
     return clip.resized(factor).with_position(pos)
 
 
-def _text_clip(text_or_words, font_size: int, fill, y_frac: float, start: float, dur: float,
-               max_w_frac: float = 0.88, stroke: int = 8, emphasis_idx: int | None = None,
-               pop: bool = False):
-    """Text mit dicker Umrandung per Pillow (kein moviepy-TextClip: schneidet Umlaute/Unterlängen ab).
-    text_or_words: entweder ein String (alter Pfad, z.B. Hook) oder eine Liste von Wörtern
-    (Caption-Gruppe) — dann wird emphasis_idx in ACCENT_COLOR statt `fill` gezeichnet."""
+def _text_image(text_or_words, font_size: int, fill, max_w_frac: float = 0.88, stroke: int = 8,
+                emphasis_idx: int | None = None):
+    """RGBA-Bild (Vollbreite) mit dickem Rand per Pillow. text_or_words: String (Hook) oder Wortliste
+    (Caption-Gruppe, dann wird emphasis_idx in ACCENT_COLOR gezeichnet)."""
     from PIL import Image, ImageDraw
     import numpy as np
-    from moviepy import ImageClip
     font = cover.find_font(font_size)
     max_w = int(config.VIDEO_WIDTH * max_w_frac)
     probe = ImageDraw.Draw(Image.new("RGBA", (10, 10)))
@@ -210,6 +208,15 @@ def _text_clip(text_or_words, font_size: int, fill, y_frac: float, start: float,
                        stroke_width=stroke, stroke_fill=(0, 0, 0, 255))
                 cx += d.textlength(w_txt + " ", font=font)
 
+    return img
+
+
+def _text_clip(text_or_words, font_size: int, fill, y_frac: float, start: float, dur: float,
+               max_w_frac: float = 0.88, stroke: int = 8, emphasis_idx: int | None = None,
+               pop: bool = False):
+    """(Altpfad, moviepy-Clips) Text als ImageClip(s)."""
+    from moviepy import ImageClip
+    img = _text_image(text_or_words, font_size, fill, max_w_frac, stroke, emphasis_idx)
     base_y = int(config.VIDEO_HEIGHT * y_frac)
     dur = max(dur, 0.2)
     arr = np.array(img)
@@ -224,6 +231,46 @@ def _text_clip(text_or_words, font_size: int, fill, y_frac: float, start: float,
         parts.append(ImageClip(arr).with_start(start + pop_dur).with_duration(dur - pop_dur)
                      .with_position((0, base_y)))
     return parts
+
+
+def _text_events(text_or_words, font_size, fill, y_frac, start, dur, max_w_frac=0.88, stroke=8,
+                 emphasis_idx=None, pop=True):
+    """Liste von Einblend-Ereignissen (t0, t1, rgba_uint8, x0, y0). Pop = 3 vorskalierte Stufen in den
+    ersten 0.12s, danach statisch -> kein Resize/Composite pro Frame beim Rendern."""
+    from PIL import Image
+    img = _text_image(text_or_words, font_size, fill, max_w_frac, stroke, emphasis_idx)
+    base_y = int(config.VIDEO_HEIGHT * y_frac)
+    w0, h0 = img.size
+    dur = max(dur, 0.2)
+    events = []
+    t = start
+    if pop and dur > 0.2:
+        for scale in (1.18, 1.10, 1.04):
+            sz = (int(w0 * scale), int(h0 * scale))
+            big = np.asarray(img.resize(sz, Image.BILINEAR))
+            events.append((t, t + 0.04, big, -(sz[0] - w0) // 2, base_y - (sz[1] - h0) // 2))
+            t += 0.04
+    events.append((t, start + dur, np.asarray(img), 0, base_y))
+    return events
+
+
+def _blend_events(frame, events, t):
+    """Blendet alle zum Zeitpunkt t aktiven Texte direkt in den Frame (nur im Textbereich gerechnet)."""
+    H_, W_ = frame.shape[:2]
+    for t0, t1, rgba, x0, y0 in events:
+        if not (t0 <= t < t1):
+            continue
+        h, w = rgba.shape[:2]
+        sx0, sy0 = max(0, -x0), max(0, -y0)
+        dx0, dy0 = max(0, x0), max(0, y0)
+        cw, ch = min(w - sx0, W_ - dx0), min(h - sy0, H_ - dy0)
+        if cw <= 0 or ch <= 0:
+            continue
+        src = rgba[sy0:sy0 + ch, sx0:sx0 + cw].astype(np.float32)
+        a = src[..., 3:4] / 255.0
+        region = frame[dy0:dy0 + ch, dx0:dx0 + cw].astype(np.float32)
+        frame[dy0:dy0 + ch, dx0:dx0 + cw] = (region * (1 - a) + src[..., :3] * a).astype(np.uint8)
+    return frame
 
 
 def _mix_music(voice_path: str, script: dict) -> str:
@@ -286,7 +333,7 @@ def build_video(script: dict, audio_path: str, output_path: str) -> str:
     duration = audio.duration
 
     # 1. Hintergrund (Stock oder prozedural, siehe backgrounds.py)
-    bg = backgrounds.get_background(script, duration).with_audio(audio)
+    bg = backgrounds.get_background(script, duration)
 
     # 2. Auto-Captions via Whisper-Timings
     words = get_word_timings(audio_path, script.get("full_voiceover_text", ""), duration)
@@ -296,17 +343,22 @@ def build_video(script: dict, audio_path: str, output_path: str) -> str:
     # kein Gelb-Akzent -> passt zur entsättigten Schwarz-Weiß-Grading der Hintergründe.
     hook_fill = (255, 255, 255, 255) if backgrounds.VISUAL_STYLE == "street_bw" else (255, 235, 90, 255)
 
-    caption_clips = [
-        part for g in caption_groups
-        for part in _text_clip(g["words"], 84, (255, 255, 255, 255), 0.66, g["start"],
+    events = []
+    for g in caption_groups:
+        events += _text_events(g["words"], 84, (255, 255, 255, 255), 0.66, g["start"],
                                max(g["end"] - g["start"], 0.3), emphasis_idx=g["emphasis_idx"], pop=True)
-    ]
 
     # 3. Hook-Overlay für die ersten 1.8s (Pattern-Interrupt oben im Bild)
-    hook_clips = _text_clip(script.get("hook", "").upper(), 96, hook_fill, 0.16,
-                            0, min(1.8, duration), max_w_frac=0.9, stroke=9, pop=True)
+    events += _text_events(script.get("hook", "").upper(), 96, hook_fill, 0.16, 0, min(1.8, duration),
+                           max_w_frac=0.9, stroke=9, pop=True)
 
-    final = CompositeVideoClip([bg, *hook_clips, *caption_clips], size=(config.VIDEO_WIDTH, config.VIDEO_HEIGHT))
+    last_t = max(duration - 1.0 / config.VIDEO_FPS, 0)
+
+    def make_frame(t):
+        # Hintergrund-Frame holen und Texte direkt hineinblenden (statt moviepy-Composite mit Masken)
+        return _blend_events(bg.get_frame(min(t, last_t)).copy(), events, t)
+
+    final = VideoClip(make_frame, duration=duration).with_audio(audio)
     final.write_videofile(
         output_path, fps=config.VIDEO_FPS, codec="libx264", audio_codec="aac",
         threads=4, preset="veryfast", logger="bar",
