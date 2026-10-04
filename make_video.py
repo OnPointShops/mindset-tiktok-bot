@@ -47,6 +47,14 @@ if __name__ == "__main__":
 
     print("1/4  Skript holen (Gemini, Thema vorgegeben) ...")
     script = content_generator.generate_script(theme_hint=theme_hint, length=length)
+    # Eigene Bild-Suchen erzwingen: --visuals "suche 1 | suche 2 | suche 3" (englisch, je Segment eine)
+    if "--visuals" in sys.argv:
+        vi = sys.argv.index("--visuals")
+        if vi + 1 < len(sys.argv):
+            qs = [q.strip() for q in sys.argv[vi + 1].split("|") if q.strip()]
+            if qs:
+                script["visual_queries"] = qs
+                content_generator._normalize_visual_queries(script)
     src = script.get("source", "gemini/claude")
     if src == "offline":
         print("\nABBRUCH: Die KI war nicht erreichbar, das Offline-Skript passt NICHT zu deinem Thema.\n"
