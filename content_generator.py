@@ -145,6 +145,35 @@ def _discover_model() -> str:
         return GEMINI_MODEL
 
 
+_avail_cache = None
+
+
+def _gemini_available_models() -> list:
+    """Echte, fuer DIESEN Key verfuegbare Flash-Modelle (neueste zuerst) - keine fest verdrahteten Namen mehr."""
+    global _avail_cache
+    if _avail_cache is not None:
+        return _avail_cache
+    import re as _re
+    out = []
+    try:
+        r = requests.get("https://generativelanguage.googleapis.com/v1beta/models",
+                         params={"key": GEMINI_API_KEY, "pageSize": 200}, timeout=20)
+        names = [m["name"].split("/")[-1] for m in r.json().get("models", [])
+                 if "generateContent" in m.get("supportedGenerationMethods", [])]
+
+        def ver(n):
+            m = _re.search(r"gemini-(\d+)\.?(\d*)", n)
+            return (int(m.group(1)), int(m.group(2) or 0)) if m else (0, 0)
+        flash = [n for n in names if "flash" in n and "thinking" not in n and "exp" not in n
+                 and "image" not in n and "tts" not in n and "live" not in n and "audio" not in n]
+        out = sorted(flash, key=lambda n: (ver(n), "lite" not in n), reverse=True)[:5]
+    except Exception:  # noqa: BLE001
+        pass
+    _avail_cache = out
+    logger.info("Gemini-Modelle fuer diesen Key: %s", ", ".join(out) or "(keine gefunden)")
+    return out
+
+
 def _gemini_pick_model() -> str:
     """Nimmt das in .env gesetzte Modell. Leer -> neuestes flash automatisch."""
     global _gemini_model_cache
@@ -168,8 +197,7 @@ def _gen_gemini(system: str, user: str, max_tokens: int = 700) -> str:
     import time
     primary = _gemini_pick_model()
     # Bei Ueberlastung (503/429) durch Modelle rotieren statt nur zu warten
-    chain = [primary] + [m for m in ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash",
-                                     "gemini-flash-latest") if m != primary]
+    chain = [primary] + [m for m in _gemini_available_models() if m != primary]
     last_err = ""
     for attempt in range(8):
         model = chain[attempt % len(chain)]
@@ -208,6 +236,33 @@ def _gen_gemini(system: str, user: str, max_tokens: int = 700) -> str:
     raise RuntimeError(f"Gemini nach 8 Versuchen nicht erreichbar ({last_err})")
 
 
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+
+def _gen_groq(system: str, user: str, max_tokens: int = 700) -> str:
+    """Groq (KOSTENLOS, keine Kreditkarte, sehr schnell): Llama 3.3 70B als Reserve, wenn Gemini ausgelastet ist."""
+    if not GROQ_API_KEY:
+        raise RuntimeError("GROQ_API_KEY fehlt in .env")
+    import time
+    last = ""
+    for attempt in range(3):
+        r = requests.post("https://api.groq.com/openai/v1/chat/completions",
+                          headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+                          json={"model": GROQ_MODEL, "temperature": 0.9, "max_tokens": max(max_tokens, 2048),
+                                "response_format": {"type": "json_object"},
+                                "messages": [{"role": "system", "content": system},
+                                             {"role": "user", "content": user}]}, timeout=90)
+        if r.status_code == 200:
+            return r.json()["choices"][0]["message"]["content"]
+        last = f"HTTP {r.status_code}: {r.text[:200]}"
+        if r.status_code in (429, 500, 502, 503):
+            time.sleep(5 * (attempt + 1))
+            continue
+        break
+    raise RuntimeError(f"Groq {last}")
+
+
 def _gen_claude(system: str, user: str, max_tokens: int = 700) -> str:
     if not config.ANTHROPIC_API_KEY:
         raise RuntimeError("ANTHROPIC_API_KEY fehlt in .env")
@@ -219,12 +274,15 @@ def _gen_claude(system: str, user: str, max_tokens: int = 700) -> str:
 
 def generate_llm(system: str, user: str, max_tokens: int = 700) -> str:
     """Einheitlicher Text-Aufruf mit Fallback-Kette je nach AI_BACKEND."""
-    order = {"gemini": ["gemini", "claude"], "claude": ["claude", "gemini"]}.get(AI_BACKEND, [])
+    order = {"gemini": ["gemini", "groq", "claude"], "claude": ["claude", "gemini", "groq"],
+             "groq": ["groq", "gemini", "claude"]}.get(AI_BACKEND, [])
     last = None
     for b in order:
         try:
             if b == "gemini" and GEMINI_API_KEY:
                 return _gen_gemini(system, user, max_tokens)
+            if b == "groq" and GROQ_API_KEY:
+                return _gen_groq(system, user, max_tokens)
             if b == "claude" and config.ANTHROPIC_API_KEY:
                 return _gen_claude(system, user, max_tokens)
         except Exception as e:  # noqa: BLE001
