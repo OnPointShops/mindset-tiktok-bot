@@ -24,7 +24,7 @@ PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY", "")
 BG_PROVIDER = os.getenv("BG_PROVIDER", "auto")  # auto | procedural | pexels | pixabay
 # "street_bw"  -> raue Schwarz-Weiß-Optik wie Street-Art-Zitat-Poster (Beton, hoher Kontrast, Körnung)
 # "cinematic_color" -> der bisherige, farbige, dunkle Cinematic-Look
-VISUAL_STYLE = os.getenv("VISUAL_STYLE", "street_bw")
+VISUAL_STYLE = os.getenv("VISUAL_STYLE", "street_modern")
 
 # (oben, unten, Lichtfarbe) – dunkel & edel, damit weiße/gelbe Schrift immer lesbar bleibt
 PALETTES = [
@@ -134,7 +134,7 @@ def _cinematic_overlay(clip, duration):
     (Vorher: drei verschachtelte Composite-Clips -> pro Frame mehrere Vollbild-Konvertierungen,
     das war der Hauptgrund für minutenlange Renderzeiten.)"""
     mult, grain = _overlay_tables()
-    bw = VISUAL_STYLE == "street_bw"
+    bw = VISUAL_STYLE in ("street_bw", "street_modern")
     coeff = np.array([0.299, 0.587, 0.114], dtype=np.float32)
 
     def tf(get_frame, t):
@@ -212,6 +212,33 @@ def _pexels(query, duration):
     return _download((files or v["video_files"])[0]["link"], "pexels")
 
 
+_ANIMAL_WORDS = {
+    "animal", "animals", "dog", "dogs", "cat", "cats", "bird", "birds", "horse", "horses", "wolf", "wolves",
+    "lion", "tiger", "bear", "fish", "insect", "butterfly", "bee", "deer", "fox", "eagle", "owl", "monkey",
+    "elephant", "snake", "cow", "pig", "sheep", "duck", "swan", "pet", "pets", "puppy", "kitten", "wildlife",
+    "rabbit", "squirrel", "spider", "frog", "dolphin", "whale", "shark", "zoo", "crow", "raven", "pigeon",
+}
+_PEOPLE_WORDS = {
+    "man", "men", "woman", "women", "people", "person", "boy", "girl", "athlete", "runner", "boxer", "silhouette",
+    "walking", "running", "hiker", "climber", "fighter", "workout", "fitness", "crowd", "human", "guy", "street",
+}
+
+
+def _tagset(hit):
+    return {t.strip().lower() for t in (hit.get("tags") or "").split(",")}
+
+
+def _prefer_people(hits, query):
+    """Tiere raus (ausser die Suche verlangt sie ausdruecklich), Clips mit Menschen nach vorn."""
+    q = set(query.lower().split())
+    wanted_animals = q & _ANIMAL_WORDS
+    kept = [h for h in hits if not ((_tagset(h) & _ANIMAL_WORDS) - wanted_animals)]
+    hits = kept or hits
+    random.shuffle(hits)
+    hits.sort(key=lambda h: 0 if (_tagset(h) & _PEOPLE_WORDS) else 1)
+    return hits
+
+
 def _pixabay_clips(query, n=3):
     """Lädt bis zu n verschiedene Pixabay-Videos (Liste lokaler Pfade), beste Auflösung zuerst."""
     r = requests.get("https://pixabay.com/api/videos/",
@@ -221,7 +248,7 @@ def _pixabay_clips(query, n=3):
     hits = r.json().get("hits", [])
     if not hits:
         raise RuntimeError("Pixabay: nichts gefunden")
-    random.shuffle(hits)
+    hits = _prefer_people(hits, query)
     paths = []
     for i, hit in enumerate(hits):
         if len(paths) >= n:
@@ -247,7 +274,7 @@ def _pixabay_images(query, n=3):
                              "safesearch": "true", "order": "popular"}, timeout=20)
     r.raise_for_status()
     hits = r.json().get("hits", [])
-    random.shuffle(hits)
+    hits = _prefer_people(hits, query)
     paths = []
     for i, hit in enumerate(hits[:n]):
         url = hit.get("largeImageURL") or hit.get("webformatURL")
@@ -363,7 +390,7 @@ def _fast_background(queries, durations, duration):
     if not parts:
         return None
     out = str(config.VIDEO_DIR / "_bg_render.mp4")
-    ffmpeg_bg.render_background(parts, duration, out, bw=(VISUAL_STYLE == "street_bw"))
+    ffmpeg_bg.render_background(parts, duration, out, bw=(VISUAL_STYLE in ("street_bw", "street_modern")), style=VISUAL_STYLE)
     return VideoFileClip(out).without_audio().subclipped(0, duration)
 
 
