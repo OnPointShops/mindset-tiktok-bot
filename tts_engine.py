@@ -50,7 +50,7 @@ EDGE_PITCH = os.getenv("EDGE_PITCH", "-6Hz")
 ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 # Vorgefertigte (premade) Stimmen laufen auch im KOSTENLOSEN Tarif (10.000 Zeichen/Monat, keine Kreditkarte).
 # Brian = tiefer, rauer Erzaehler (Trailer/Doku-Stil), Daniel = britischer Erzaehler, George = warm-rau, Adam = tief.
-ELEVEN_VOICE_ID = os.getenv("ELEVEN_VOICE_ID", "nPczCjzI2devNBz1zQrb")  # Brian
+ELEVEN_VOICE_ID = os.getenv("ELEVEN_VOICE_ID", "g1jpii0iyvtRs8fqXsd1")  # Helmut (German Epic Trailer Voice)
 ELEVEN_VOICE_NAME = os.getenv("ELEVEN_VOICE_NAME", "")  # z.B. "Leonard" -> ID wird automatisch in deinen Stimmen gesucht
 ELEVEN_MODEL = os.getenv("ELEVEN_MODEL", "eleven_multilingual_v2")  # v4: Modell-ID aus der ElevenLabs-Doku eintragen
 _ELEVEN_BRIAN = "nPczCjzI2devNBz1zQrb"
