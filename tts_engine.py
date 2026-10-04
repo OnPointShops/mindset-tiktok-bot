@@ -52,8 +52,9 @@ ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 # Brian = tiefer, rauer Erzaehler (Trailer/Doku-Stil), Daniel = britischer Erzaehler, George = warm-rau, Adam = tief.
 ELEVEN_VOICE_ID = os.getenv("ELEVEN_VOICE_ID", "g1jpii0iyvtRs8fqXsd1")  # Helmut (German Epic Trailer Voice)
 ELEVEN_VOICE_NAME = os.getenv("ELEVEN_VOICE_NAME", "")  # z.B. "Leonard" -> ID wird automatisch in deinen Stimmen gesucht
-ELEVEN_MODEL = os.getenv("ELEVEN_MODEL", "eleven_multilingual_v2")  # v4: Modell-ID aus der ElevenLabs-Doku eintragen
+ELEVEN_MODEL = os.getenv("ELEVEN_MODEL", "eleven_v4")  # neuestes, ausdrucksstaerkstes Modell (Fallback: multilingual_v2)
 _ELEVEN_BRIAN = "nPczCjzI2devNBz1zQrb"
+ELEVEN_STABILITY_V4 = float(os.getenv("ELEVEN_STABILITY_V4", "0.45"))  # v4: niedriger = dramatischer
 ELEVEN_STABILITY = float(os.getenv("ELEVEN_STABILITY", "0.42"))   # niedriger = mehr Ausdruck/Dramatik
 ELEVEN_STYLE = float(os.getenv("ELEVEN_STYLE", "0.35"))           # Betonung/Pathos
 ELEVEN_SPEED = float(os.getenv("ELEVEN_SPEED", "0.92"))           # 0.7-1.2, leicht langsamer = gewichtig
@@ -291,41 +292,52 @@ def _tts_eleven(text: str, out_path: str) -> str:
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg fehlt (fuer mp3->wav)")
     voice_id = _eleven_resolve_voice()
-    base = {
-        "text": text,
-        "voice_settings": {"stability": ELEVEN_STABILITY, "similarity_boost": 0.8,
-                           "style": ELEVEN_STYLE, "use_speaker_boost": True, "speed": ELEVEN_SPEED},
-    }
     headers = {"xi-api-key": ELEVEN_API_KEY, "Content-Type": "application/json"}
 
-    def _call(vid, model, with_lang=True):
-        body = dict(base, model_id=model)
-        if with_lang:
-            body["language_code"] = "de"
-        return requests.post(f"https://api.elevenlabs.io/v1/text-to-speech/{vid}/with-timestamps",
-                             params={"output_format": "mp3_44100_128"}, headers=headers, json=body, timeout=120)
+    def _settings(model):
+        if model.startswith("eleven_v4") or model.startswith("eleven_v3"):
+            # v4/v3 kennen nur Stabilitaet + Aehnlichkeit (kein speed/style -> sonst HTTP 422)
+            return {"stability": ELEVEN_STABILITY_V4, "similarity_boost": 0.8}
+        return {"stability": ELEVEN_STABILITY, "similarity_boost": 0.8, "style": ELEVEN_STYLE,
+                "use_speaker_boost": True, "speed": ELEVEN_SPEED}
 
-    r = None
-    # Reihenfolge: gewuenschte Stimme+Modell -> gleiche Stimme mit stabilem v2 -> Brian (immer gratis nutzbar)
-    attempts = [(voice_id, ELEVEN_MODEL, True), (voice_id, ELEVEN_MODEL, False),
-                (voice_id, "eleven_multilingual_v2", True), (_ELEVEN_BRIAN, "eleven_multilingual_v2", True)]
-    seen = set()
-    for vid, model, lang in attempts:
-        if (vid, model, lang) in seen:
+    def _call(vid, model, lang, ts):
+        body = {"text": text, "model_id": model, "voice_settings": _settings(model)}
+        if lang:
+            body["language_code"] = "de"
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{vid}" + ("/with-timestamps" if ts else "")
+        return requests.post(url, params={"output_format": "mp3_44100_128"}, headers=headers, json=body, timeout=180)
+
+    # Reihenfolge: Wunschmodell (v4) mit Timings -> ohne language_code -> ohne Timings (Whisper schaetzt dann)
+    # -> stabiles v2 -> Brian (premade, laeuft im Gratis-Tarif)
+    attempts = [(voice_id, ELEVEN_MODEL, True, True), (voice_id, ELEVEN_MODEL, False, True),
+                (voice_id, ELEVEN_MODEL, False, False),
+                (voice_id, "eleven_multilingual_v2", True, True), (_ELEVEN_BRIAN, "eleven_multilingual_v2", True, True)]
+    r, used, seen = None, None, set()
+    for att in attempts:
+        if att in seen:
             continue
-        seen.add((vid, model, lang))
-        r = _call(vid, model, lang)
+        seen.add(att)
+        vid, model, lang, ts = att
+        r = _call(*att)
         if r.status_code == 200:
+            used = att
             break
-        logger.warning("ElevenLabs (%s / %s) HTTP %s: %s", vid[:6], model, r.status_code, r.text[:160])
+        logger.warning("ElevenLabs (%s / %s%s) HTTP %s: %s", vid[:6], model, "" if ts else " ohne Timings",
+                       r.status_code, r.text[:160])
         if r.status_code == 401:
             break
-    if r is None or r.status_code != 200:
+    if used is None:
         raise RuntimeError(f"ElevenLabs HTTP {r.status_code if r is not None else '?'}: {r.text[:300] if r is not None else ''}")
-    data = r.json()
     mp3 = out_path + ".mp3"
-    Path(mp3).write_bytes(base64.b64decode(data["audio_base64"]))
-    words = _words_from_alignment(data.get("alignment") or data.get("normalized_alignment"))
+    words = []
+    if used[3]:
+        data = r.json()
+        Path(mp3).write_bytes(base64.b64decode(data["audio_base64"]))
+        words = _words_from_alignment(data.get("alignment") or data.get("normalized_alignment"))
+    else:
+        Path(mp3).write_bytes(r.content)
+    logger.info("ElevenLabs: Modell %s, Stimme %s", used[1], used[0])
     p = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", mp3, "-ac", "1", "-ar", "24000", out_path],
                        capture_output=True, timeout=120)
     Path(mp3).unlink(missing_ok=True)
@@ -336,7 +348,7 @@ def _tts_eleven(text: str, out_path: str) -> str:
         wj.write_text(_json.dumps(words, ensure_ascii=False), encoding="utf-8")
     else:
         wj.unlink(missing_ok=True)
-    logger.info("ElevenLabs TTS fertig (%s, %d Wort-Timings): %s", ELEVEN_VOICE_ID, len(words), out_path)
+    logger.info("ElevenLabs TTS fertig (%d Wort-Timings): %s", len(words), out_path)
     return _apply_voice_fx(out_path)
 
 
