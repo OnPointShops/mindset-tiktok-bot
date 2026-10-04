@@ -100,12 +100,12 @@ def _apply_voice_fx(wav_path: str) -> str:
         pitch_stage = f"asetrate={int(sr * VOICE_PITCH)},aresample={sr},atempo={1 / VOICE_PITCH:.4f},"
 
     if VOICE_FX == "cinema":
-        # Echte Erzaehlerstimme (ElevenLabs): NICHT mehr verbiegen - nur Brust-Waerme, sanfte Kompression,
-        # kurzer dunkler Raum (Kino-Saal statt Badezimmer-Hall), Lautheit auf Streaming-Niveau.
+        # Echte Erzaehlerstimme (ElevenLabs): TROCKEN lassen. Das Echo (aecho) klang wie ein Klassenzimmer
+        # -> komplett raus. Nur Brust-Waerme, sanfte Kompression, Lautheit auf Streaming-Niveau.
         af = (
-            "highpass=f=60,bass=g=3:f=100,equalizer=f=250:t=q:w=1.0:g=1.2,"
+            "highpass=f=60,bass=g=2.5:f=110,equalizer=f=250:t=q:w=1.0:g=1.0,"
             "acompressor=threshold=0.12:ratio=2.5:attack=8:release=200:makeup=2,"
-            "aecho=0.9:0.7:120|230:0.10|0.06,loudnorm=I=-15:TP=-1.3:LRA=10"
+            "loudnorm=I=-15:TP=-1.3:LRA=10"
         )
     elif VOICE_FX == "grimdark":
         # Kein Bit-Crush mehr (klang kaputt statt episch). Tiefe/Rauheit kommen aus:
