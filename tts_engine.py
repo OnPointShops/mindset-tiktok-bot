@@ -47,6 +47,13 @@ GOOGLE_RATE = float(os.getenv("GOOGLE_RATE", "0.95"))
 EDGE_VOICE = os.getenv("EDGE_VOICE", "de-DE-ConradNeural")  # alt: de-DE-KillianNeural, de-DE-FlorianMultilingualNeural
 EDGE_RATE = os.getenv("EDGE_RATE", "-6%")    # leicht langsamer, bedeutungsvoller, aber artefaktarm
 EDGE_PITCH = os.getenv("EDGE_PITCH", "-6Hz")
+ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
+# Vorgefertigte (premade) Stimmen laufen auch im KOSTENLOSEN Tarif (10.000 Zeichen/Monat, keine Kreditkarte).
+# Brian = tiefer, rauer Erzaehler (Trailer/Doku-Stil), Daniel = britischer Erzaehler, George = warm-rau, Adam = tief.
+ELEVEN_VOICE_ID = os.getenv("ELEVEN_VOICE_ID", "nPczCjzI2devNBz1zQrb")  # Brian
+ELEVEN_STABILITY = float(os.getenv("ELEVEN_STABILITY", "0.42"))   # niedriger = mehr Ausdruck/Dramatik
+ELEVEN_STYLE = float(os.getenv("ELEVEN_STYLE", "0.35"))           # Betonung/Pathos
+ELEVEN_SPEED = float(os.getenv("ELEVEN_SPEED", "0.92"))           # 0.7-1.2, leicht langsamer = gewichtig
 FISH_API_KEY = os.getenv("FISH_API_KEY", "")
 FISH_VOICE_ID = os.getenv("FISH_VOICE_ID", "")
 
@@ -64,7 +71,7 @@ _kokoro_instance = None
 # "grimdark" -> tief, rau, narbig, episch (jemand, der selbst gelitten hat)   [DEFAULT]
 # "jarvis"   -> tiefer, ruhiger, warm, leichter Raum (der alte, saubere Sound)
 # "off"      -> Original-Stimme unbearbeitet
-VOICE_FX = os.getenv("VOICE_FX", "grimdark")
+VOICE_FX = os.getenv("VOICE_FX") or ("cinema" if os.getenv("ELEVENLABS_API_KEY") else "grimdark")
 # <1 = zusätzlicher Pitch-Shift in der FX-Kette, ZUSÄTZLICH zu EDGE_PITCH oben.
 # Default 1.0 = AUS, weil EDGE_PITCH die Tiefe schon sauber an der Quelle erzeugt -
 # zwei Pitch-Shifts hintereinander (asetrate/atempo ist ein Resample-Trick, kein echter
@@ -89,7 +96,15 @@ def _apply_voice_fx(wav_path: str) -> str:
     if abs(VOICE_PITCH - 1.0) > 0.001:
         pitch_stage = f"asetrate={int(sr * VOICE_PITCH)},aresample={sr},atempo={1 / VOICE_PITCH:.4f},"
 
-    if VOICE_FX == "grimdark":
+    if VOICE_FX == "cinema":
+        # Echte Erzaehlerstimme (ElevenLabs): NICHT mehr verbiegen - nur Brust-Waerme, sanfte Kompression,
+        # kurzer dunkler Raum (Kino-Saal statt Badezimmer-Hall), Lautheit auf Streaming-Niveau.
+        af = (
+            "highpass=f=60,bass=g=3:f=100,equalizer=f=250:t=q:w=1.0:g=1.2,"
+            "acompressor=threshold=0.12:ratio=2.5:attack=8:release=200:makeup=2,"
+            "aecho=0.9:0.7:120|230:0.10|0.06,loudnorm=I=-15:TP=-1.3:LRA=10"
+        )
+    elif VOICE_FX == "grimdark":
         # Kein Bit-Crush mehr (klang kaputt statt episch). Tiefe/Rauheit kommen aus:
         # Brust-Resonanz anheben, harte Zischlaute dämpfen, strammer Kompressor (Nähe/Druck),
         # lange dunkle Hallfahne (episch). Klingt gewichtig & narbig, bleibt aber klar verständlich.
@@ -263,6 +278,77 @@ def _tts_edge(text: str, out_path: str) -> str:
 
 
 
+def _tts_eleven(text: str, out_path: str) -> str:
+    """ElevenLabs (Free-Tier, keine Kreditkarte): echte, kinotaugliche Erzaehlerstimme mit Wort-Timings."""
+    import base64
+    import json as _json
+    import shutil
+    if not ELEVEN_API_KEY:
+        raise RuntimeError("ELEVENLABS_API_KEY fehlt in .env")
+    if not shutil.which("ffmpeg"):
+        raise RuntimeError("ffmpeg fehlt (fuer mp3->wav)")
+    body = {
+        "text": text,
+        "model_id": "eleven_multilingual_v2",
+        "language_code": "de",
+        "voice_settings": {"stability": ELEVEN_STABILITY, "similarity_boost": 0.8,
+                           "style": ELEVEN_STYLE, "use_speaker_boost": True, "speed": ELEVEN_SPEED},
+    }
+    r = requests.post(
+        f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVEN_VOICE_ID}/with-timestamps",
+        params={"output_format": "mp3_44100_128"},
+        headers={"xi-api-key": ELEVEN_API_KEY, "Content-Type": "application/json"},
+        json=body, timeout=120)
+    if r.status_code == 400 and "language_code" in r.text:
+        body.pop("language_code")
+        r = requests.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVEN_VOICE_ID}/with-timestamps",
+            params={"output_format": "mp3_44100_128"},
+            headers={"xi-api-key": ELEVEN_API_KEY, "Content-Type": "application/json"},
+            json=body, timeout=120)
+    if r.status_code != 200:
+        raise RuntimeError(f"ElevenLabs HTTP {r.status_code}: {r.text[:300]}")
+    data = r.json()
+    mp3 = out_path + ".mp3"
+    Path(mp3).write_bytes(base64.b64decode(data["audio_base64"]))
+    words = _words_from_alignment(data.get("alignment") or data.get("normalized_alignment"))
+    p = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", mp3, "-ac", "1", "-ar", "24000", out_path],
+                       capture_output=True, timeout=120)
+    Path(mp3).unlink(missing_ok=True)
+    if p.returncode != 0:
+        raise RuntimeError("mp3->wav fehlgeschlagen: " + p.stderr.decode(errors="replace")[:200])
+    wj = Path(out_path + ".words.json")
+    if words:
+        wj.write_text(_json.dumps(words, ensure_ascii=False), encoding="utf-8")
+    else:
+        wj.unlink(missing_ok=True)
+    logger.info("ElevenLabs TTS fertig (%s, %d Wort-Timings): %s", ELEVEN_VOICE_ID, len(words), out_path)
+    return _apply_voice_fx(out_path)
+
+
+def _words_from_alignment(al) -> list:
+    """Zeichen-Timings (ElevenLabs) -> Wort-Timings [{word,start,end}]."""
+    if not al:
+        return []
+    chars = al.get("characters") or []
+    st = al.get("character_start_times_seconds") or []
+    en = al.get("character_end_times_seconds") or []
+    words, cur, w0, w1 = [], "", None, None
+    for ch, a, b in zip(chars, st, en):
+        if ch.isspace():
+            if cur:
+                words.append({"word": cur, "start": w0, "end": w1})
+            cur, w0 = "", None
+            continue
+        if w0 is None:
+            w0 = a
+        cur += ch
+        w1 = b
+    if cur:
+        words.append({"word": cur, "start": w0, "end": w1})
+    return words
+
+
 def _tts_google(text: str, out_path: str) -> str:
     """Google Cloud Text-to-Speech (REST + API-Key). Chirp 3 HD: 1 Mio. Zeichen/Monat gratis."""
     import base64
@@ -291,6 +377,17 @@ def synthesize(text: str, out_path: str, lang="de") -> str:
     Erzeugt eine WAV-Datei aus Text.
     Backend: TTS_BACKEND in .env — "piper" (default), "kokoro", oder "fish".
     """
+    # ElevenLabs hat Vorrang, sobald ein Key da ist (ausser ein anderes Backend ist ausdruecklich gewaehlt)
+    if ELEVEN_API_KEY and TTS_BACKEND in ("eleven", "edge", "google"):
+        try:
+            return _tts_eleven(text, out_path)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("ElevenLabs ausgefallen (%s) -> Fallback auf Edge", e)
+            try:
+                return _tts_edge(text, out_path)
+            except Exception as e2:  # noqa: BLE001
+                logger.warning("Edge-TTS ausgefallen (%s) -> Fallback auf Piper", e2)
+                return _tts_piper(text, out_path)
     if TTS_BACKEND == "google":
         try:
             return _tts_google(text, out_path)
