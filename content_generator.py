@@ -103,7 +103,10 @@ effort', 'boxer rising after knockdown', 'man walking through smoke fire silhoue
 collapsing pushing through pain', 'hands gripping ledge climbing up'. Die drei Queries sollen \
 sich klar unterscheiden (nicht dreimal dasselbe Motiv) und zusammen einen kleinen Bogen \
 erzählen: Fall/Kampf -> Anstrengung -> Aufstehen/Entschlossenheit. IMMER ein Mensch in echter \
-körperlicher Anstrengung, NIE nur Landschaft oder Abstraktes. KEINE TIERE in den Queries (kein dog, wolf, 
+körperlicher Anstrengung, NIE nur Landschaft oder Abstraktes. EMOTION ZUERST: Bevorzuge GESICHTER und Nahaufnahmen mit klarem Gefühl (tears crying face closeup, 
+man face fear closeup, woman smiling relieved, people laughing joy, lonely man thinking window, exhausted 
+face determination). Jede Query soll ein anderes GEFÜHL zeigen, passend zum Satz: Angst, Schmerz, Einsamkeit, 
+Trotz, Erleichterung, Freude. KEINE TIERE in den Queries (kein dog, wolf, 
 bird, horse, lion ...), außer das Thema verlangt ausdrücklich ein Tier. Immer 'man', 'woman' oder 'people' 
 in die Query schreiben; Menschen in Straßen-/Urban-Szenen (Beton, Graffiti-Wände, Nacht, Stadt) sind ideal.
 """

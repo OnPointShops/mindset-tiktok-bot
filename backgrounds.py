@@ -224,6 +224,14 @@ _PEOPLE_WORDS = {
 }
 
 
+_EMOTION_WORDS = {
+    "emotion", "emotional", "emotions", "face", "faces", "portrait", "closeup", "close-up", "crying", "cry", "tears",
+    "sad", "sadness", "happy", "smile", "smiling", "laughing", "laugh", "scream", "screaming", "fear", "anger",
+    "angry", "shocked", "surprise", "joy", "grief", "lonely", "alone", "depressed", "stress", "stressed", "hope",
+    "relief", "expression", "emotions", "thinking", "pain", "determination", "tired", "exhausted",
+}
+
+
 def _tagset(hit):
     return {t.strip().lower() for t in (hit.get("tags") or "").split(",")}
 
@@ -235,7 +243,7 @@ def _prefer_people(hits, query):
     kept = [h for h in hits if not ((_tagset(h) & _ANIMAL_WORDS) - wanted_animals)]
     hits = kept or hits
     random.shuffle(hits)
-    hits.sort(key=lambda h: 0 if (_tagset(h) & _PEOPLE_WORDS) else 1)
+    hits.sort(key=lambda h: 0 if (_tagset(h) & _EMOTION_WORDS and _tagset(h) & _PEOPLE_WORDS | _tagset(h) & {'face', 'portrait', 'crying', 'tears', 'smile'}) else (1 if (_tagset(h) & _PEOPLE_WORDS) else 2))
     return hits
 
 
