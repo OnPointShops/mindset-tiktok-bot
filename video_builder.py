@@ -123,7 +123,10 @@ _STOPWORDS = {"der", "die", "das", "und", "oder", "aber", "ist", "sind", "war", 
 # Blutrot/Amber-Akzent fürs Schlüsselwort je Caption-Gruppe: ein einzelner Farbfleck auf
 # sonst reinem Schwarz-Weiß (street_bw) bzw. Weiß (cinematic) -> klassischer "Sin City"-
 # Effekt, zieht den Blick genau auf das Wort, das den Gedanken trägt.
-ACCENT_COLOR = (214, 40, 40, 255)
+import os as _os
+_STYLE = _os.getenv("VISUAL_STYLE", "street_art")
+# street_art: Hintergrund ist rot/creme/schwarz -> Akzentwort in Spruehgelb, sonst gaebe es Rot auf Rot
+ACCENT_COLOR = (255, 212, 0, 255) if _STYLE == "street_art" else (214, 40, 40, 255)
 
 
 def _group_words_for_captions(words: list[dict], group_size=3) -> list[dict]:
@@ -171,6 +174,12 @@ def _text_image(text_or_words, font_size: int, fill, max_w_frac: float = 0.88, s
     from PIL import Image, ImageDraw
     import numpy as np
     font = cover.find_font(font_size)
+    if _STYLE == "street_art" and isinstance(text_or_words, str):
+        try:  # Hook im Graffiti-Marker-Look
+            from PIL import ImageFont
+            font = ImageFont.truetype(str(config.ASSETS_DIR / "fonts" / "PermanentMarker-Regular.ttf"), font_size)
+        except Exception:  # noqa: BLE001
+            pass
     max_w = int(config.VIDEO_WIDTH * max_w_frac)
     probe = ImageDraw.Draw(Image.new("RGBA", (10, 10)))
 

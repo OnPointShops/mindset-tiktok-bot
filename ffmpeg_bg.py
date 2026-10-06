@@ -40,20 +40,32 @@ def _overlay_png(path: Path, style: str = "street_bw") -> str:
     alpha = np.clip(vig + bottom + top, 0, 0.82)
     rgba = np.zeros((H, W, 4), np.uint8)
     rgba[..., 3] = (alpha * 255).astype(np.uint8)
+    if style == "street_art":
+        # Halbton-Raster (Comic/Siebdruck): Punkte werden zu den Raendern groesser
+        cell = 15
+        gy, gx = np.mgrid[0:H, 0:W].astype(np.float32)
+        dx = (gx % cell) - cell / 2
+        dy = (gy % cell) - cell / 2
+        dist = np.sqrt(dx * dx + dy * dy)
+        edge = np.clip(((xs / W - 0.5) * 1.3) ** 2 + ((ys / H - 0.5) * 1.1) ** 2, 0, 1)
+        radius = 1.2 + 5.6 * np.clip(edge * 1.6 + bottom * 0.5, 0, 1)
+        dots = np.clip((radius - dist) / 1.2, 0, 1) * 0.34
+        a = np.clip(alpha + dots * (1 - alpha), 0, 0.9)
+        rgba[..., 3] = (a * 255).astype(np.uint8)
     img = Image.fromarray(rgba, "RGBA")
-    if style == "street_modern":
-        img = _street_marks(img)
+    if style in ("street_modern", "street_art"):
+        img = _street_marks(img, style)
     img.save(path)
     return str(path)
 
 
-def _street_marks(img):
+def _street_marks(img, style="street_modern"):
     """Moderner Street-Art-Look: rote Spruehfarbe (Spritzer + Drips), Klebeband-Ecke, Stencil-Pfeil/Kreuz-Marken.
     Zufaellig pro Video, bleibt aber in Raendern (Untertitel/Gesichter in der Mitte bleiben frei)."""
     import random
     from PIL import ImageDraw, ImageFilter
     rnd = random.Random()
-    RED = (222, 30, 36)
+    RED = (222, 30, 36) if style != "street_art" else (255, 212, 0)  # street_art: gelbe Spruehfarbe auf rotem Poster
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
     # Spruehnebel-Spritzer in einer Ecke oben (hinter Hook-Text, aber nicht im Gesichtsbereich)
@@ -131,7 +143,15 @@ def _render(parts: list[dict], duration: float, out_path: str, bw: bool = True,
     look = "[cat]"
     if bw:
         # gleiche Kurve wie früher: entsättigen, Kontrast 1.38 um Mittelgrau, Schwarz/Weiß nie ganz clippen
-        if style == "street_modern":
+        if style == "street_art":
+            # Siebdruck-Poster (Obey/Stencil-Look): Graustufen -> 3 Farben: Schwarz / Rot / Creme
+            chains.append(
+                "[cat]hue=s=0,eq=contrast=1.45,format=rgb24,"
+                "curves=r='0/0.04 0.30/0.07 0.40/0.84 0.66/0.86 0.74/0.95 1/0.96':"
+                "g='0/0.04 0.30/0.04 0.40/0.15 0.66/0.16 0.74/0.92 1/0.94':"
+                "b='0/0.04 0.30/0.04 0.40/0.15 0.66/0.16 0.74/0.85 1/0.88':interp=pchip,"
+                "format=yuv420p[bw]")
+        elif style == "street_modern":
             # harte S-Kurve (Stencil/Poster-Look): tiefes Schwarz, helles Weiss, wenig Mitteltoene
             chains.append("[cat]hue=s=0,eq=contrast=1.55:brightness=-0.03,"
                           "curves=all='0/0 0.22/0.07 0.5/0.5 0.78/0.94 1/1',"

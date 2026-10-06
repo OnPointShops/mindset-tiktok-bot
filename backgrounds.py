@@ -24,7 +24,7 @@ PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY", "")
 BG_PROVIDER = os.getenv("BG_PROVIDER", "auto")  # auto | procedural | pexels | pixabay
 # "street_bw"  -> raue Schwarz-Weiß-Optik wie Street-Art-Zitat-Poster (Beton, hoher Kontrast, Körnung)
 # "cinematic_color" -> der bisherige, farbige, dunkle Cinematic-Look
-VISUAL_STYLE = os.getenv("VISUAL_STYLE", "street_modern")
+VISUAL_STYLE = os.getenv("VISUAL_STYLE", "street_art")
 
 # (oben, unten, Lichtfarbe) – dunkel & edel, damit weiße/gelbe Schrift immer lesbar bleibt
 PALETTES = [
@@ -134,7 +134,7 @@ def _cinematic_overlay(clip, duration):
     (Vorher: drei verschachtelte Composite-Clips -> pro Frame mehrere Vollbild-Konvertierungen,
     das war der Hauptgrund für minutenlange Renderzeiten.)"""
     mult, grain = _overlay_tables()
-    bw = VISUAL_STYLE in ("street_bw", "street_modern")
+    bw = VISUAL_STYLE in ("street_bw", "street_modern", "street_art")
     coeff = np.array([0.299, 0.587, 0.114], dtype=np.float32)
 
     def tf(get_frame, t):
@@ -398,7 +398,7 @@ def _fast_background(queries, durations, duration):
     if not parts:
         return None
     out = str(config.VIDEO_DIR / "_bg_render.mp4")
-    ffmpeg_bg.render_background(parts, duration, out, bw=(VISUAL_STYLE in ("street_bw", "street_modern")), style=VISUAL_STYLE)
+    ffmpeg_bg.render_background(parts, duration, out, bw=(VISUAL_STYLE in ("street_bw", "street_modern", "street_art")), style=VISUAL_STYLE)
     return VideoFileClip(out).without_audio().subclipped(0, duration)
 
 
