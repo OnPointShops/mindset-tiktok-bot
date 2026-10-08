@@ -130,20 +130,32 @@ def _render(parts: list[dict], duration: float, out_path: str, bw: bool = True,
 
     chains = []
     for i, p in enumerate(parts):
-        z = (0.06 if p.get("image") else 0.09) if zoom else 0.0
+        z = (0.12 if p.get("image") else 0.09) if zoom else 0.0
         d = max(p["dur"], 0.5)
-        # 1) mittig auf 9:16 zuschneiden, 2) EIN Skalierschritt mit Zoom (eval=frame), 3) auf 1080x1920 croppen
+        move = p.get("move", "push") if zoom else "push"
+        base = (f"[{i}:v]crop='min(iw\\,ih*{W}/{H})':'min(ih\\,iw*{H}/{W})',setsar=1,fps={FPS},")
+        if move in ("pan_l", "pan_r") and zoom:
+            # Schwenk: Bild 18% groesser, Ausschnitt wandert seitlich
+            x = "(iw-ow)*(t/%.3f)" % d if move == "pan_r" else "(iw-ow)*(1-t/%.3f)" % d
+            chains.append(base + f"scale={int(W * 1.18) // 2 * 2}:{int(H * 1.18) // 2 * 2}:flags=bilinear,"
+                          f"crop={W}:{H}:x='{x}':y='(ih-oh)/2',setsar=1,setpts=PTS-STARTPTS[v{i}]")
+            continue
+        grow = f"(1+{z}*t/{d:.3f})" if move != "pull" else f"(1+{z}*(1-t/{d:.3f}))"
         chains.append(
-            f"[{i}:v]crop='min(iw\\,ih*{W}/{H})':'min(ih\\,iw*{H}/{W})',setsar=1,fps={FPS},"
-            f"scale=w='2*trunc({W}*(1+{z}*t/{d:.3f})/2)':h='2*trunc({H}*(1+{z}*t/{d:.3f})/2)':eval=frame:flags=bilinear,"
-            f"crop={W}:{H},setpts=PTS-STARTPTS[v{i}]")
+            base +
+            f"scale=w='2*trunc({W}*{grow}/2)':h='2*trunc({H}*{grow}/2)':eval=frame:flags=bilinear,"
+            f"crop={W}:{H},setsar=1,setpts=PTS-STARTPTS[v{i}]")
     concat_in = "".join(f"[v{i}]" for i in range(len(parts)))
     chains.append(f"{concat_in}concat=n={len(parts)}:v=1:a=0[cat]")
 
     look = "[cat]"
-    if bw:
+    if bw or style == "cinema":
         # gleiche Kurve wie früher: entsättigen, Kontrast 1.38 um Mittelgrau, Schwarz/Weiß nie ganz clippen
-        if style == "street_art":
+        if style == "cinema":
+            # Film-Look: leicht entsaettigt, kraeftiger Kontrast, Teal-Schatten / warme Lichter
+            chains.append("[cat]eq=contrast=1.14:saturation=0.88:gamma=0.97,"
+                          "colorbalance=rs=-0.05:bs=0.07:rh=0.06:bh=-0.05,format=yuv420p[bw]")
+        elif style == "street_art":
             # Siebdruck-Poster (Obey/Stencil-Look): Graustufen -> 3 Farben: Schwarz / Rot / Creme
             chains.append(
                 "[cat]hue=s=0,eq=contrast=1.45,format=rgb24,"

@@ -425,6 +425,19 @@ def get_background(script: dict, duration: float):
     scale = duration / sum(raw)
     durations = [d * scale for d in raw]
 
+    if os.getenv("BG_RENDER", "ffmpeg") == "ffmpeg" and os.getenv("AI_SCENES", "1") != "0":
+        try:
+            import scenes
+            import ffmpeg_bg
+            parts = scenes.build_parts(script, duration)
+            out = str(config.VIDEO_DIR / "_bg_render.mp4")
+            look = "cinema" if scenes.SCENE_LOOK != "streetart" else "street_art"
+            ffmpeg_bg.render_background(parts, duration, out, bw=False, style=look)
+            logger.info("Hintergrund: %d KI-Szenen (%s-Look) gerendert", len(parts), scenes.SCENE_LOOK)
+            return VideoFileClip(out).without_audio().subclipped(0, duration)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("KI-Szenen nicht moeglich (%s) -> Stock-Footage", e)
+
     if os.getenv("BG_RENDER", "ffmpeg") == "ffmpeg":
         try:
             clip = _fast_background(queries, durations, duration)
