@@ -4,8 +4,13 @@ Vollautomatische Pipeline für ein **Account-Portfolio**:
 Trend-Research → Skript (KI) → Voiceover → Video **oder** Karussell →
 Upload auf **TikTok / Instagram / YouTube Shorts** → stündlicher Cron.
 
-**Geschäftsplan und Zahlen: [STRATEGIE_10K.md](STRATEGIE_10K.md)**
-**Deine Startliste: [TODO_KAI.md](TODO_KAI.md)**
+Darüber liegt ein **Autopilot**, der fünfmal täglich prüft, Fehler selbst
+repariert, Zahlen misst, online nach neuen Möglichkeiten forscht und den
+nächsten Schritt plant — mit einem **Gedächtnis**, das lokal bleibt.
+
+**→ Fang hier an: [START_HIER.md](START_HIER.md)** (eine Seite, ohne Fachbegriffe)
+Geschäftsplan und Zahlen: [STRATEGIE_10K.md](STRATEGIE_10K.md)
+Startliste der Handgriffe: [TODO_KAI.md](TODO_KAI.md)
 
 Gebaut und in dieser Sandbox getestet: Config, Content-Generator, TTS (live
 generiert, Audio-Datei existiert), Video-Rendering-Pipeline (live gerendert,
@@ -139,9 +144,28 @@ trend_research.py      Wöchentlicher Themen-Refresh
 stats_scraper.py       Holt echte View-Zahlen vom Profil
 improver.py            Wertet Performance aus, schlägt Experimente vor
 scheduler.py           Ein Cron-Lauf: bedient alle fälligen Slots aller Accounts
-daily_run.py           Tagesbriefing + Selbsttest + Selbstoptimierung
+autopilot.py           Der Hauptlauf: prüfen · heilen · posten · messen · forschen · planen · melden
+brain.py               Das Gedächtnis (lokale SQLite, verlässt das Gerät nie)
+brain_seed.py          Füllt das Gedächtnis mit der gemeinsamen Strategie
+ideas_scout.py         Sucht online nach neuen Verdienstmöglichkeiten, bewertet sie
+daily_run.py           Älterer Tageslauf (vom Autopiloten abgelöst, bleibt funktionsfähig)
 main.py                Dauerprozess-Fallback ohne Cron
+JK24.command           Doppelklick auf dem Mac: Stand ansehen, Fragen beantworten
+install_autopilot_mac.sh  Richtet den Autopiloten per launchd ein (5x täglich)
 ```
+
+### Autopilot
+
+```bash
+python3 autopilot.py            # voller Durchgang
+python3 autopilot.py --kurz     # nur prüfen, heilen, posten
+python3 autopilot.py --bericht  # letzten Stand anzeigen
+```
+
+Der Autopilot ändert **niemals selbst seinen Programmcode**. Er repariert
+(Paket nachinstallieren, Platte aufräumen, Lauf wiederholen), misst, forscht
+und schlägt vor; Code-Änderungen landen als Vorschlag im Gedächtnis. Ein System,
+das sich unbeaufsichtigt umschreibt, ist irgendwann kaputt und niemand weiß warum.
 
 ### Account-Portfolio
 
