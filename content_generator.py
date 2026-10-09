@@ -391,24 +391,35 @@ LANGFORM-MODUS (überschreibt die Längenvorgaben oben):
 """
 
 
-STORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "content", "kai_story.local.md")
+STORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "content", "kai_mindset.local.md")
 
 
 def _load_story() -> str:
-    """Persoenliche Leitlinien (lokal, gitignored). Leer, wenn die Datei fehlt."""
+    """Mindset-Leitlinien (lokal, gitignored). Formen Haltung und Ton, nie den Inhalt
+    autobiografisch. Leer, wenn die Datei fehlt."""
     try:
         with open(STORY_FILE, encoding="utf-8") as f:
             txt = f.read().strip()
     except OSError:
-        return ""
+        # Abwaertskompatibel: alten Dateinamen noch lesen, falls vorhanden.
+        try:
+            with open(STORY_FILE.replace("kai_mindset", "kai_story"), encoding="utf-8") as f:
+                txt = f.read().strip()
+        except OSError:
+            return ""
     if not txt:
         return ""
     return (
-        "PERSOENLICHE LEITLINIEN DES KANAL-BETREIBERS (echte Lebensgeschichte, haelt dich daran):\n"
-        "- Schreibe in Ich-Form, authentisch, aus diesem Leben heraus, nicht generisch.\n"
-        "- Verantwortung statt Schuld: Entscheidungen und Vertrauen gehoeren ihm, "
-        "Betrug bleibt die Tat der anderen. Nie andeuten, jemand habe Betrug verdient.\n"
-        "- Erfinde keine Details, die nicht im Material stehen.\n\n"
+        "MINDSET & HALTUNG DIESES KANALS (pruegt NUR Ton, Blickwinkel und Botschaft):\n"
+        "- Sprich IMMER den Zuschauer direkt an (\"du\"), universell, als Gesetz fuers Leben.\n"
+        "- KEINE Autobiografie: nenne nie einen Namen, keine Firma, keine Insolvenz, "
+        "keine Jahreszahlen, keinen konkreten Betrug oder Ort. Niemand soll merken, "
+        "dass dahinter eine bestimmte Person steht.\n"
+        "- Nutze die Ueberzeugungen unten als innere Wahrheit, nicht als Geschichte: "
+        "verwandle sie in allgemeine Saetze, die fuer jeden gelten.\n"
+        "- Verantwortung statt Schuld: der Zuschauer besitzt seine Entscheidungen und sein "
+        "Vertrauen; Verrat bleibt die Tat des anderen. Nie andeuten, ein Opfer habe es verdient.\n\n"
+        "UEBERZEUGUNGEN (als Haltung, nicht woertlich zitieren):\n"
         + txt[:6000] + "\n"
     )
 
