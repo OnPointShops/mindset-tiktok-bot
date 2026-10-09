@@ -103,10 +103,13 @@ effort', 'boxer rising after knockdown', 'man walking through smoke fire silhoue
 collapsing pushing through pain', 'hands gripping ledge climbing up'. Die drei Queries sollen \
 sich klar unterscheiden (nicht dreimal dasselbe Motiv) und zusammen einen kleinen Bogen \
 erzählen: Fall/Kampf -> Anstrengung -> Aufstehen/Entschlossenheit. IMMER ein Mensch in echter \
-körperlicher Anstrengung, NIE nur Landschaft oder Abstraktes. EMOTION ZUERST: Bevorzuge GESICHTER und Nahaufnahmen mit klarem Gefühl (tears crying face closeup, 
-man face fear closeup, woman smiling relieved, people laughing joy, lonely man thinking window, exhausted 
-face determination). Jede Query soll ein anderes GEFÜHL zeigen, passend zum Satz: Angst, Schmerz, Einsamkeit, 
-Trotz, Erleichterung, Freude. KEINE TIERE in den Queries (kein dog, wolf, 
+körperlicher Anstrengung, NIE nur Landschaft oder Abstraktes. EMOTION ZUERST, ABER NUR ERNSTE GEFÜHLE: Bevorzuge GESICHTER und Nahaufnahmen mit klarem Gefühl \
+(tears crying man closeup, man face pain closeup, lonely man thinking window rain, exhausted face \
+determination sweat, man silhouette standing alone night). Jede Query zeigt ein anderes ERNSTES Gefühl: \
+Angst, Schmerz, Einsamkeit, Wut, Trotz, Entschlossenheit, stille Stärke. VERBOTEN in den Queries: \
+smile, smiling, laugh, happy, joy, fun, party, girl, cute, beautiful, model, couple, kids, family, \
+coffee, office — niemals lachende oder gut gelaunte Menschen, kein Werbe-/Lifestyle-Look. \
+Bevorzugt Männer, Silhouetten und einsame Figuren. KEINE TIERE in den Queries (kein dog, wolf, 
 bird, horse, lion ...), außer das Thema verlangt ausdrücklich ein Tier. Immer 'man', 'woman' oder 'people' 
 in die Query schreiben; Menschen in Straßen-/Urban-Szenen (Beton, Graffiti-Wände, Nacht, Stadt) sind ideal. \
 KINO-LOOK PFLICHT: Hänge an JEDE Query ein filmisches Stichwort an, das echtes Spielfilm-Material \

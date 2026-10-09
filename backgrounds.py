@@ -199,19 +199,6 @@ def _download(url: str, name: str) -> str:
     return path
 
 
-def _pexels(query, duration):
-    r = requests.get("https://api.pexels.com/videos/search",
-                     headers={"Authorization": config.PEXELS_API_KEY},
-                     params={"query": query, "orientation": "portrait", "per_page": 15}, timeout=20)
-    r.raise_for_status()
-    vids = r.json().get("videos", [])
-    if not vids:
-        raise RuntimeError("Pexels: nichts gefunden")
-    v = random.choice(vids[:10])
-    files = sorted([f for f in v["video_files"] if f["width"] <= 1080], key=lambda f: f["width"], reverse=True)
-    return _download((files or v["video_files"])[0]["link"], "pexels")
-
-
 _ANIMAL_WORDS = {
     "animal", "animals", "dog", "dogs", "cat", "cats", "bird", "birds", "horse", "horses", "wolf", "wolves",
     "lion", "tiger", "bear", "fish", "insect", "butterfly", "bee", "deer", "fox", "eagle", "owl", "monkey",
@@ -247,55 +234,228 @@ def _prefer_people(hits, query):
     return hits
 
 
-def _pixabay_clips(query, n=3):
-    """Lädt bis zu n verschiedene Pixabay-Videos (Liste lokaler Pfade), beste Auflösung zuerst."""
+# ── Clip-Auswahl: Gedaechtnis + Stimmungsfilter + KI-Cutter ─────────────────────
+import base64
+import json as _json
+import time as _time
+
+USED_FILE = config.CONTENT_DIR / "used_clips.json"
+USED_KEEP = 3000          # so viele zuletzt benutzte Clip-IDs werden nie wieder genommen
+VISION_CHECK = os.getenv("VISION_CHECK", "1") != "0"
+
+
+def _used_load() -> list:
+    try:
+        return _json.loads(USED_FILE.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _used_add(cid: str):
+    used = [u for u in _used_load() if u != cid] + [cid]
+    try:
+        USED_FILE.write_text(_json.dumps(used[-USED_KEEP:]), encoding="utf-8")
+    except OSError:
+        pass
+
+
+# Alles mit guter Laune / Werbe-Look / Kitsch fliegt raus — passt nicht zu einem ernsten Kanal.
+_BLOCK_MOOD = {
+    "happy", "happiness", "smile", "smiling", "smiles", "smiley", "laugh", "laughing", "laughter",
+    "joy", "joyful", "fun", "funny", "party", "celebration", "celebrate", "cheerful", "cute",
+    "pretty", "beautiful", "beauty", "model", "models", "fashion", "girl", "girls", "teen",
+    "teenager", "love", "couple", "romance", "romantic", "kiss", "wedding", "bride", "dance",
+    "dancing", "christmas", "holiday", "holidays", "birthday", "kids", "kid", "child", "children",
+    "baby", "family", "vacation", "beach", "summer", "friends", "friendship", "selfie", "makeup",
+    "coffee", "cafe", "food", "cooking", "flowers", "playful", "enjoy", "enjoying", "relax",
+    "relaxing", "lifestyle", "shopping", "business meeting", "office", "teamwork", "handshake",
+}
+# Was ernst, dunkel, filmisch wirkt, wird nach vorne sortiert.
+_DARK_MOOD = {
+    "dark", "night", "rain", "rainy", "alone", "lonely", "loneliness", "silhouette", "shadow",
+    "shadows", "fight", "fighting", "boxer", "boxing", "struggle", "storm", "smoke", "fog", "mist",
+    "sad", "sadness", "depressed", "depression", "despair", "crying", "tears", "pain", "tired",
+    "exhausted", "determination", "determined", "training", "sweat", "monochrome", "dramatic",
+    "cinematic", "serious", "thinking", "city", "street", "urban", "stairs", "running", "gym",
+    "fire", "ruins", "black and white", "mountain", "climbing", "warrior", "strength", "power",
+}
+
+
+def _mood_ok(tags: set) -> bool:
+    return not (tags & _BLOCK_MOOD)
+
+
+def _mood_score(tags: set) -> int:
+    s = 2 * len(tags & _DARK_MOOD)
+    if tags & _PEOPLE_WORDS:
+        s += 2
+    if (tags & _ANIMAL_WORDS):
+        s -= 6
+    return s
+
+
+def _vision_rank(cands: list, query: str) -> list:
+    """KI-Cutter: Gemini schaut die Vorschaubilder an und bewertet jedes 0-10 fuer einen ernsten,
+    dunklen, filmischen Mindset-Kanal. Gute Laune, Models, Kinder, Essen usw. = 0 Punkte.
+    Gibt die Kandidaten mit Note >= 5 in Notenreihenfolge zurueck. Ohne Key/bei Fehler: unveraendert."""
+    key = os.getenv("GEMINI_API_KEY", "")
+    if not (VISION_CHECK and key and cands):
+        return cands
+    pool = [c for c in cands if c.get("thumb")][:12]
+    if len(pool) < 2:
+        return cands
+    parts = [{"text": (
+        "Du bist Cutter fuer einen ERNSTEN, DUNKLEN, CINEASTISCHEN Mindset-Kanal "
+        "(Kampf, Niederlage, Einsamkeit, Aufstehen, Entschlossenheit). Gesuchte Szene: "
+        f"'{query}'. Bewerte JEDES folgende Bild mit 0-10: Wie gut passt es ernst, dunkel, filmisch "
+        "UND zur Szene? 0 Punkte zwingend fuer: lachende/laechelnde Menschen, gute Laune, Party, "
+        "huebsche Models/Beauty/Fashion, Paare/Romantik, Kinder, Tiere, Essen/Kaffee, Buero/Werbe-Look, "
+        "eingeblendeter Text/Logos. Hohe Noten fuer: Gesichter mit Schmerz/Ernst/Entschlossenheit, "
+        "Silhouetten, Nacht, Regen, Gegenlicht, Kampf, Training, einsame Figur. "
+        'Antworte NUR mit JSON: {"scores": [Note Bild 1, Note Bild 2, ...]}')}]
+    used_pool = []
+    for c in pool:
+        try:
+            r = requests.get(c["thumb"], timeout=10)
+            if r.status_code != 200 or len(r.content) < 500:
+                continue
+            parts.append({"text": f"Bild {len(used_pool) + 1}:"})
+            parts.append({"inline_data": {"mime_type": "image/jpeg",
+                                          "data": base64.b64encode(r.content).decode()}})
+            used_pool.append(c)
+        except requests.RequestException:
+            continue
+    if len(used_pool) < 2:
+        return cands
+    try:
+        import content_generator as cg
+        models = [cg._gemini_pick_model()] + [m for m in cg._gemini_available_models()][:3]
+    except Exception:  # noqa: BLE001
+        models = [os.getenv("GEMINI_MODEL", "gemini-2.5-flash")]
+    body = {"contents": [{"role": "user", "parts": parts}],
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 400,
+                                 "responseMimeType": "application/json",
+                                 "thinkingConfig": {"thinkingBudget": 0}}}
+    for attempt, model in enumerate(dict.fromkeys(models)):
+        try:
+            r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                              params={"key": key}, json=body, timeout=60)
+            if r.status_code in (429, 500, 502, 503, 504):
+                _time.sleep(3 * (attempt + 1))
+                continue
+            if r.status_code != 200:
+                continue
+            txt = "".join(p.get("text", "") for p in r.json()["candidates"][0]["content"].get("parts", []))
+            scores = _json.loads(txt[txt.find("{"): txt.rfind("}") + 1]).get("scores", [])
+            rated = [(s, c) for s, c in zip(scores, used_pool) if isinstance(s, (int, float))]
+            good = [c for s, c in sorted(rated, key=lambda x: -x[0]) if s >= 5]
+            logger.info("KI-Cutter '%s': Noten %s -> %d brauchbar", query, [s for s, _ in rated], len(good))
+            return good
+        except Exception as e:  # noqa: BLE001
+            logger.warning("KI-Cutter (%s) fehlgeschlagen: %s", model, e)
+            continue
+    return cands
+
+
+def _choose(cands: list, query: str, n: int) -> list:
+    """Filtert benutzte Clips + falsche Stimmung raus, sortiert dunkel/ernst nach vorne,
+    laesst den KI-Cutter final entscheiden."""
+    used = set(_used_load())
+    fresh = [c for c in cands if c["id"] not in used]
+    if not fresh:
+        logger.info("Alle Treffer fuer '%s' schon benutzt -> nichts Neues", query)
+        return []
+    fresh = [c for c in fresh if _mood_ok(c["tags"])]
+    random.shuffle(fresh)
+    fresh.sort(key=lambda c: -_mood_score(c["tags"]))
+    picked = _vision_rank(fresh[:12], query)
+    return picked[:n]
+
+
+def _pexels_cands(query: str) -> list:
+    r = requests.get("https://api.pexels.com/videos/search",
+                     headers={"Authorization": config.PEXELS_API_KEY},
+                     params={"query": query, "orientation": "portrait", "per_page": 40}, timeout=20)
+    r.raise_for_status()
+    out = []
+    for v in r.json().get("videos", []):
+        files = sorted([f for f in v.get("video_files", []) if (f.get("width") or 0) <= 1080],
+                       key=lambda f: f.get("width") or 0, reverse=True) or v.get("video_files", [])
+        if not files:
+            continue
+        slug = (v.get("url") or "").rstrip("/").split("/")[-1]  # z.B. "man-walking-in-rain-12345"
+        tags = set(slug.replace("-", " ").lower().split())
+        out.append({"id": f"pexels:{v['id']}", "url": files[0]["link"], "thumb": v.get("image"),
+                    "tags": tags})
+    return out
+
+
+def _pexels(query, duration):
+    picked = _choose(_pexels_cands(query), query, 1)
+    if not picked:
+        raise RuntimeError("Pexels: nichts Neues/Passendes")
+    path = _download(picked[0]["url"], "pexels")
+    _used_add(picked[0]["id"])
+    return path
+
+
+def _pixabay_video_cands(query: str) -> list:
     r = requests.get("https://pixabay.com/api/videos/",
-                     params={"key": PIXABAY_API_KEY, "q": query, "per_page": 30,
+                     params={"key": PIXABAY_API_KEY, "q": query, "per_page": 100,
                              "safesearch": "true", "order": "popular"}, timeout=20)
     r.raise_for_status()
-    hits = r.json().get("hits", [])
-    if not hits:
-        raise RuntimeError("Pixabay: nichts gefunden")
-    hits = _prefer_people(hits, query)
-    paths = []
-    for i, hit in enumerate(hits):
-        if len(paths) >= n:
-            break
-        v = hit["videos"]
+    out = []
+    for hit in r.json().get("hits", []):
+        v = hit.get("videos", {})
         f = v.get("medium") or v.get("large") or v.get("small")
-        if not f:
+        if not f or not f.get("url"):
             continue
+        thumb = (f.get("thumbnail") or (v.get("small") or {}).get("thumbnail")
+                 or (v.get("tiny") or {}).get("thumbnail"))
+        if not thumb and hit.get("picture_id"):
+            thumb = f"https://i.vimeocdn.com/video/{hit['picture_id']}_640x360.jpg"
+        out.append({"id": f"pixabay:{hit['id']}", "url": f["url"], "thumb": thumb, "tags": _tagset(hit)})
+    return out
+
+
+def _pixabay_clips(query, n=3):
+    """Laedt bis zu n NEUE, stimmungs- und KI-gepruefte Pixabay-Videos (lokale Pfade)."""
+    cands = _pixabay_video_cands(query)
+    if not cands:
+        raise RuntimeError("Pixabay: nichts gefunden")
+    paths = []
+    for i, c in enumerate(_choose(cands, query, n)):
         try:
-            paths.append(_download(f["url"], f"pixabay_{i}"))
+            paths.append(_download(c["url"], f"pixabay_{i}"))
+            _used_add(c["id"])
         except Exception:  # noqa: BLE001
             continue
     if not paths:
-        raise RuntimeError("Pixabay: kein Clip ladbar")
+        raise RuntimeError("Pixabay: kein neuer, passender Clip")
     return paths
 
 
 def _pixabay_images(query, n=3):
-    """Fallback: Pixabay-Fotos (Liste lokaler Pfade) für Ken-Burns-Hintergrund."""
+    """Fallback: Pixabay-Fotos (lokale Pfade) fuer Ken-Burns-Hintergrund, gleiche Filter."""
     r = requests.get("https://pixabay.com/api/",
-                     params={"key": PIXABAY_API_KEY, "q": query, "per_page": 30,
+                     params={"key": PIXABAY_API_KEY, "q": query, "per_page": 100,
                              "image_type": "photo", "orientation": "vertical",
                              "safesearch": "true", "order": "popular"}, timeout=20)
     r.raise_for_status()
-    hits = r.json().get("hits", [])
-    hits = _prefer_people(hits, query)
+    cands = [{"id": f"pixabayimg:{h['id']}", "url": h.get("largeImageURL") or h.get("webformatURL"),
+              "thumb": h.get("webformatURL") or h.get("previewURL"), "tags": _tagset(h)}
+             for h in r.json().get("hits", []) if h.get("largeImageURL") or h.get("webformatURL")]
     paths = []
-    for i, hit in enumerate(hits[:n]):
-        url = hit.get("largeImageURL") or hit.get("webformatURL")
-        if not url:
-            continue
+    for i, c in enumerate(_choose(cands, query, n)):
         pth = str(config.VIDEO_DIR / f"_bgimg_{i}.jpg")
         try:
-            Path(pth).write_bytes(requests.get(url, timeout=60).content)
+            Path(pth).write_bytes(requests.get(c["url"], timeout=60).content)
             paths.append(pth)
+            _used_add(c["id"])
         except Exception:  # noqa: BLE001
             continue
     if not paths:
-        raise RuntimeError("Pixabay: keine Bilder")
+        raise RuntimeError("Pixabay: keine neuen, passenden Bilder")
     return paths
 
 
@@ -357,27 +517,50 @@ def _segment_clip(query: str, duration: float, topic_seed: str):
     return _procedural(duration, topic_seed + query)
 
 
+_DARK_FALLBACKS = [
+    "lonely man silhouette night rain cinematic",
+    "boxer training dark gym slow motion",
+    "man walking alone city night cinematic",
+    "exhausted athlete sweat determination dramatic lighting",
+    "man standing storm clouds silhouette",
+    "man running stairs night training",
+    "man face closeup serious dark",
+    "man hood walking fog street",
+]
+
+
+def _fetch_segment(q: str, d: float) -> list:
+    """Video vor Foto: Pixabay-Videos -> Pexels-Videos -> Pixabay-Fotos. Liste (pfad, ist_bild)."""
+    if BG_PROVIDER in ("auto", "pixabay") and PIXABAY_API_KEY:
+        try:
+            return [(p, False) for p in _pixabay_clips(q, n=2)]
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Pixabay-Videos '%s': %s", q, e)
+    if BG_PROVIDER in ("auto", "pexels") and config.PEXELS_API_KEY:
+        try:
+            return [(_pexels(q, d), False)]
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Pexels '%s': %s", q, e)
+    if BG_PROVIDER in ("auto", "pixabay") and PIXABAY_API_KEY:
+        try:
+            return [(p, True) for p in _pixabay_images(q, n=2)]
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Pixabay-Fotos '%s': %s", q, e)
+    return []
+
+
 def _collect_parts(queries, durations):
     """Lädt je Segment 1-2 Stock-Clips (oder Fotos) und gibt die ffmpeg-Teile zurück:
     [{"path","dur","image"}]. Segmente ohne Treffer leihen sich Material aus anderen Segmenten;
     gar nichts gefunden -> leere Liste (dann greift der alte/prozedurale Pfad)."""
     per_segment = []
-    for q, d in zip(queries, durations):
-        got = []
-        if BG_PROVIDER in ("auto", "pixabay") and PIXABAY_API_KEY:
-            try:
-                got = [(p, False) for p in _pixabay_clips(q, n=2)]
-            except Exception as e:  # noqa: BLE001
-                logger.warning("Pixabay-Videos '%s': %s -> Fotos", q, e)
-                try:
-                    got = [(p, True) for p in _pixabay_images(q, n=2)]
-                except Exception as e2:  # noqa: BLE001
-                    logger.warning("Pixabay-Fotos '%s': %s", q, e2)
-        if not got and BG_PROVIDER in ("auto", "pexels") and config.PEXELS_API_KEY:
-            try:
-                got = [(_pexels(q, d), False)]
-            except Exception as e:  # noqa: BLE001
-                logger.warning("Pexels '%s': %s", q, e)
+    for i, (q, d) in enumerate(zip(queries, durations)):
+        got = _fetch_segment(q, d)
+        if not got:
+            # KI-Cutter/Filter haben alles abgelehnt -> dunkle Ersatzsuche statt Notfall-Hintergrund
+            fb = _DARK_FALLBACKS[(i + random.randint(0, 99)) % len(_DARK_FALLBACKS)]
+            logger.info("Segment '%s' ohne passenden neuen Clip -> Ersatzsuche '%s'", q, fb)
+            got = _fetch_segment(fb, d)
         per_segment.append(got)
     pool = [g for seg in per_segment for g in seg]
     if not pool:
