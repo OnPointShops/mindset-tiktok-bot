@@ -1,0 +1,84 @@
+[
+  {
+    "id": "mindset",
+    "name": "Mindset / Disziplin",
+    "enabled": true,
+    "platforms": [
+      "tiktok"
+    ],
+    "niche": "Mindset, Disziplin, Stoizismus, mentale Härte",
+    "content_format": "video",
+    "posts_per_day": 3,
+    "post_times": [
+      "07:20",
+      "12:40",
+      "18:30"
+    ],
+    "tiktok_account_name": "mindset_daily_de",
+    "instagram_user_env": "IG_USER_ID_MINDSET",
+    "youtube_token_env": "YT_REFRESH_TOKEN_MINDSET",
+    "voice_id": "",
+    "visual_style": "street_bw",
+    "link_in_bio": "",
+    "base_hashtags": [
+      "mindset",
+      "disziplin",
+      "motivation"
+    ]
+  },
+  {
+    "id": "ki",
+    "name": "KI & Automatisierung fürs Business",
+    "enabled": true,
+    "platforms": [
+      "instagram",
+      "tiktok"
+    ],
+    "niche": "KI-Tools und Automatisierung für Selbstständige und kleine Unternehmen: konkrete Workflows, Zeitersparnis in Stunden, Tools mit Namen, keine Buzzwords",
+    "content_format": "carousel",
+    "posts_per_day": 3,
+    "post_times": [
+      "08:10",
+      "13:20",
+      "19:10"
+    ],
+    "tiktok_account_name": "",
+    "instagram_user_env": "IG_USER_ID_KI",
+    "youtube_token_env": "",
+    "voice_id": "",
+    "visual_style": "street_bw",
+    "link_in_bio": "",
+    "base_hashtags": [
+      "ki",
+      "automatisierung",
+      "selbststaendigkeit"
+    ]
+  },
+  {
+    "id": "nebenverdienst",
+    "name": "Selbstständigkeit / Nebeneinkommen",
+    "enabled": true,
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "niche": "Nebeneinkommen und Selbstständigkeit in Deutschland: realistische Zahlen, Behörden, Steuern, erste Kunden — ehrlich statt Hochglanz",
+    "content_format": "mixed",
+    "posts_per_day": 2,
+    "post_times": [
+      "09:15",
+      "17:40"
+    ],
+    "tiktok_account_name": "",
+    "instagram_user_env": "IG_USER_ID_NEBEN",
+    "youtube_token_env": "",
+    "voice_id": "",
+    "visual_style": "street_bw",
+    "link_in_bio": "",
+    "base_hashtags": [
+      "nebeneinkommen",
+      "selbststaendig",
+      "business"
+    ]
+  }
+]

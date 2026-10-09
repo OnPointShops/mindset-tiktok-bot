@@ -20,17 +20,25 @@ logger = logging.getLogger("uploader")
 
 
 def post_video(script: dict, video_path: str, schedule_time: str | None = None,
-               schedule_day: int | None = None) -> str:
+               schedule_day: int | None = None, account=None) -> str:
     """
     Postet ein fertiges Video. Gibt 'Completed' oder 'Error' zurück
     (so wie es tiktokautouploader selbst zurückgibt).
+
+    `account` ist ein accounts.Account aus dem Portfolio. Ohne Angabe wird der
+    alte Einzel-Account aus .env genutzt (Abwärtskompatibilität).
     """
-    hashtags = script.get("hashtags", [])
+    account_name = getattr(account, "tiktok_account_name", "") or config.TIKTOK_ACCOUNT_NAME
+    hashtags = list(script.get("hashtags", []))
+    if account is not None:
+        hashtags += [t for t in account.base_hashtags if t not in hashtags]
     description = script.get("caption", script.get("hook", ""))
+    if script.get("is_ad"):
+        description = f"Werbung — {description}"   # UWG: Kennzeichnung lesbar und vorne
 
     logger.info(
         "Upload startet | Account=%s | Video=%s | Schedule=%s",
-        config.TIKTOK_ACCOUNT_NAME, video_path, schedule_time,
+        account_name, video_path, schedule_time,
     )
 
     # Cookie-Datei liegt per Lib-Konvention im aktuellen Arbeitsverzeichnis —
@@ -42,7 +50,7 @@ def post_video(script: dict, video_path: str, schedule_time: str | None = None,
         result = upload_tiktok(
             video=str(Path(video_path).resolve()),
             description=description,
-            accountname=config.TIKTOK_ACCOUNT_NAME,
+            accountname=account_name,
             hashtags=hashtags,
             schedule=schedule_time,
             day=schedule_day,

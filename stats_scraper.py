@@ -92,37 +92,57 @@ def _already_scraped_topics() -> set:
 
 
 def update_performance() -> int:
-    """Holt aktuelle View-Zahlen und ergänzt performance.csv um neue Zeilen.
-    Gibt die Anzahl neu geschriebener Zeilen zurück."""
-    posted = [h for h in _history() if h.get("status") == "posted"]
-    posted.sort(key=lambda h: h.get("posted_at", h.get("generated_at", "")), reverse=True)
-    if not posted:
+    """Holt aktuelle View-Zahlen für ALLE TikTok-Accounts des Portfolios und
+    ergänzt performance.csv um neue Zeilen. Gibt die Anzahl neuer Zeilen zurück."""
+    import accounts as accounts_mod
+
+    history = [h for h in _history() if h.get("status") == "posted"]
+    if not history:
         logger.info("Keine geposteten Videos in der Historie — nichts zu tun.")
         return 0
 
-    try:
-        video_stats = fetch_profile_video_views(config.TIKTOK_ACCOUNT_NAME, max_videos=len(posted))
-    except Exception as e:  # noqa: BLE001
-        logger.warning("Profil-Scrape fehlgeschlagen (%s) — TikTok-UI hat sich evtl. geändert.", e)
-        return 0
-
-    if not video_stats:
-        logger.warning("Keine Videos im Profil-Grid gefunden — Account privat? Noch kein Post sichtbar?")
-        return 0
+    tiktok_accounts = [a for a in accounts_mod.enabled() if a.tiktok_account_name]
+    if not tiktok_accounts:
+        # Fallback auf die alte Ein-Account-Konfiguration aus .env
+        tiktok_accounts = [type("A", (), {"id": "", "tiktok_account_name":
+                                          config.TIKTOK_ACCOUNT_NAME})()]
 
     already = _already_scraped_topics()
     new_rows = []
-    for queue_entry, stat in zip(posted, video_stats):
-        topic = queue_entry.get("topic", "")
-        if topic in already:
-            continue  # schon erfasst, nicht doppelt schreiben
-        new_rows.append({
-            "topic": topic,
-            "format": queue_entry.get("format", ""),
-            "views": stat["views"],
-            "likes": "", "comments": "", "shares": "",  # im Grid nicht sichtbar, optional später ergänzbar
-            "scraped_at": time.strftime("%Y-%m-%d %H:%M"),
-        })
+
+    for acc in tiktok_accounts:
+        if not acc.tiktok_account_name:
+            continue
+        posted = [h for h in history if h.get("account", acc.id) == acc.id]
+        posted.sort(key=lambda h: h.get("posted_at", h.get("generated_at", "")), reverse=True)
+        if not posted:
+            continue
+
+        try:
+            video_stats = fetch_profile_video_views(acc.tiktok_account_name,
+                                                    max_videos=len(posted))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Profil-Scrape für %s fehlgeschlagen (%s) — TikTok-UI evtl. geändert.",
+                           acc.tiktok_account_name, e)
+            continue
+
+        if not video_stats:
+            logger.warning("Keine Videos im Grid von %s — privat? noch nichts sichtbar?",
+                           acc.tiktok_account_name)
+            continue
+
+        for queue_entry, stat in zip(posted, video_stats):
+            topic = queue_entry.get("topic", "")
+            if topic in already:
+                continue  # schon erfasst, nicht doppelt schreiben
+            already.add(topic)
+            new_rows.append({
+                "topic": topic,
+                "format": queue_entry.get("format", ""),
+                "views": stat["views"],
+                "likes": "", "comments": "", "shares": "",  # im Grid nicht sichtbar
+                "scraped_at": time.strftime("%Y-%m-%d %H:%M"),
+            })
 
     if not new_rows:
         logger.info("Keine neuen Datenpunkte (alles schon erfasst).")
