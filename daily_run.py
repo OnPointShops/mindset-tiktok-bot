@@ -72,12 +72,22 @@ def main():
     except Exception as e:  # noqa: BLE001
         problems.append(f"Verbesserungs-Recherche fehlgeschlagen: {e}")
 
+    # Tagesziel = Summe aller Accounts im Portfolio
+    import accounts as accounts_mod
+    portfolio = accounts_mod.enabled()
+    daily_target = sum(a.posts_per_day for a in portfolio) or config.POSTS_PER_DAY
+
     if ok:
         try:
             import scheduler
-            posted = scheduler.run_daily_cycle()
-            if posted < config.POSTS_PER_DAY:
-                problems.append(f"Nur {posted}/{config.POSTS_PER_DAY} Videos gepostet (Logs prüfen)")
+            scheduler.run_cycle()
+            # Gezählt wird, was HEUTE über alle Accounts tatsächlich rausging —
+            # nicht nur, was dieser eine Lauf geschafft hat (der Cron läuft stündlich).
+            posted = sum(accounts_mod.posted_today(a) for a in portfolio)
+            if posted < daily_target:
+                problems.append(
+                    f"Erst {posted}/{daily_target} Beiträge heute veröffentlicht "
+                    f"(die späteren Slots laufen evtl. noch)")
         except Exception as e:  # noqa: BLE001
             problems.append(f"Posting-Zyklus fehlgeschlagen: {e}")
     else:
@@ -87,7 +97,10 @@ def main():
     q = json.loads(config.QUEUE_FILE.read_text(encoding="utf-8")) if config.QUEUE_FILE.exists() else []
     total_posted = len([x for x in q if x.get("status") == "posted"])
     lines = [f"# JK24 Mindset-Bot Briefing {datetime.now():%d.%m.%Y}", "",
-             f"**Heute gepostet:** {posted}/{config.POSTS_PER_DAY}  |  **Gesamt:** {total_posted}", ""]
+             f"**Heute gepostet:** {posted}/{daily_target}  |  **Gesamt:** {total_posted}", ""]
+    lines += ["| Account | heute | Ziel |", "|---|---:|---:|"]
+    lines += [f"| {a.id} | {accounts_mod.posted_today(a)} | {a.posts_per_day} |" for a in portfolio]
+    lines += [""]
     lines += ["## Probleme"] + ([f"- {p}" for p in problems] or ["- keine"]) + [""]
     if strategy:
         lines += ["## Neue Erkenntnisse"] + [f"- {x}" for x in strategy.get("lessons", [])] + [""]

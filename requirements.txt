@@ -34,3 +34,10 @@ scikit-learn>=0.24.0        # von tiktokautouploader intern genutzt
 playwright>=1.45.0,<1.55.0
 
 edge-tts>=6.1.0          # Kostenlose Microsoft-Neuralstimmen (Default-TTS)
+
+# --- Instagram- & YouTube-Upload (offizielle APIs) ---
+# Beide laufen ueber "requests" (steht oben schon drin) - bewusst KEIN
+# google-api-python-client und kein facebook-sdk: beide ziehen grosse
+# Abhaengigkeitsbaeume mit, fuer zwei HTTP-Aufrufe lohnt das nicht.
+# Nur falls MEDIA_HOST=s3 genutzt wird, zusaetzlich installieren:
+#   pip install boto3

@@ -1,7 +1,16 @@
-# Mindset-TikTok-Automation
+# Faceless-Content-Automation (Mindset / KI / Nebenverdienst)
 
-Vollautomatische Pipeline: Trend-Research → Skript (Claude) → Voiceover (Kokoro TTS)
-→ Video (Stock-Footage + Auto-Captions) → Upload (TikTok) → täglich per Cron.
+Vollautomatische Pipeline für ein **Account-Portfolio**:
+Trend-Research → Skript (KI) → Voiceover → Video **oder** Karussell →
+Upload auf **TikTok / Instagram / YouTube Shorts** → stündlicher Cron.
+
+Darüber liegt ein **Autopilot**, der fünfmal täglich prüft, Fehler selbst
+repariert, Zahlen misst, online nach neuen Möglichkeiten forscht und den
+nächsten Schritt plant — mit einem **Gedächtnis**, das lokal bleibt.
+
+**→ Fang hier an: [START_HIER.md](START_HIER.md)** (eine Seite, ohne Fachbegriffe)
+Geschäftsplan und Zahlen: [STRATEGIE_10K.md](STRATEGIE_10K.md)
+Startliste der Handgriffe: [TODO_KAI.md](TODO_KAI.md)
 
 Gebaut und in dieser Sandbox getestet: Config, Content-Generator, TTS (live
 generiert, Audio-Datei existiert), Video-Rendering-Pipeline (live gerendert,
@@ -61,13 +70,19 @@ python3 scheduler.py
 
 ## Automatischer Betrieb (danach läuft's ohne dich)
 
-**Empfohlen: Cron** (robuster als Dauerprozess, übersteht Server-Neustarts):
+**Empfohlen: Cron**, stündlich. Der Scheduler prüft selbst, welcher Account
+gerade einen fälligen Posting-Zeitpunkt hat (definiert in `content/accounts.json`),
+und holt verpasste Slots später am Tag nach:
 ```bash
 crontab -e
-# Einmal täglich posten (Uhrzeit an POST_TIME in .env anpassen):
-30 18 * * * cd /pfad/zum/projekt && /usr/bin/python3 scheduler.py >> logs/cron.log 2>&1
-# Wöchentlich Trends aktualisieren:
-0 6 * * 1 cd /pfad/zum/projekt && /usr/bin/python3 trend_research.py >> logs/cron.log 2>&1
+5 * * * * cd /pfad/zum/projekt && /usr/bin/python3 scheduler.py >> logs/cron.log 2>&1
+0 6 * * * cd /pfad/zum/projekt && /usr/bin/python3 daily_run.py >> logs/cron.log 2>&1
+0 5 * * 1 cd /pfad/zum/projekt && /usr/bin/python3 trend_research.py >> logs/cron.log 2>&1
+```
+
+Status jederzeit prüfen:
+```bash
+python3 accounts.py     # welcher Account postet wann, welche Plattformen sind verbunden
 ```
 
 **Alternative, falls kein Cron verfügbar:** `python3 main.py` als Dauerprozess
@@ -102,26 +117,59 @@ sag Bescheid.
 
 ---
 
-## Monetarisierung — realistischer Zeitrahmen
+## Monetarisierung
 
-TikTok Creator Rewards Program (Deutschland eligible): 10.000 Follower +
-100.000 Views/30 Tage, Videos >60s, ~0,40-1,00€/1000 Views. Bei konstantem
-Posten realistisch 6-18 Monate bis dahin. Schneller nutzbar: TikTok Shop /
-Affiliate-Links (ab 1.000 Follower) oder LIVE-Gifts (ab ~1.000 Follower,
-kein Posting-Zwang). "Nebenbei Geld verdienen ohne eigenen Aufwand" ist als
-System-Ziel jetzt gebaut — als Zeitplan bleibt Geduld der Preis.
+Kurzfassung: **Plattform-Ausschüttungen tragen kein Zieleinkommen.** TikTok zahlt in
+Deutschland 0,60–0,90 € pro 1.000 qualifizierte Views (ab 10k Follower + 100k Views/30 Tage,
+nur Videos > 60 Sek.), Instagram zahlt pro View gar nichts. Reichweite ist Traffic,
+nicht Umsatz — das Geld entsteht erst am Ende des Funnels.
 
----
+Die vollständige Rechnung, die fünf Umsatzströme und der Monatsplan stehen in
+**[STRATEGIE_10K.md](STRATEGIE_10K.md)**.
 
 ## Dateiübersicht
 
 ```
-config.py             Zentrale Konfiguration (.env-basiert)
-content_generator.py  Claude generiert Hook/Body/CTA/Hashtags
-tts_engine.py         Kokoro (lokal) oder Fish Audio (cloud) TTS
-video_builder.py      Pexels-Footage + Voiceover + Whisper-Auto-Captions
-uploader.py           tiktokautouploader-Wrapper
-trend_research.py     Wöchentlicher Themen-Refresh
-scheduler.py          Ein kompletter Tages-Zyklus (Cron-Ziel)
-main.py               Dauerprozess-Fallback ohne Cron
+config.py              Zentrale Konfiguration (.env-basiert)
+accounts.py            Account-Portfolio: Nischen, Formate, Posting-Zeiten, Slot-Logik
+content_generator.py   KI generiert Hook/Body/CTA/Hashtags
+tts_engine.py          Edge / Piper / Kokoro / ElevenLabs / Fish TTS
+video_builder.py       Stock-Footage + Voiceover + Auto-Captions
+carousel.py            Text-Karussells (schwarz/weiß, Serifenschrift) für Instagram
+uploader.py            TikTok (Browser-Automation)
+uploader_instagram.py  Instagram Reels + Karussells (offizielle Graph API)
+uploader_youtube.py    YouTube Shorts (offizielle Data API v3)
+media_host.py          Öffentliche URLs für Instagram (lokal oder S3/R2)
+trend_research.py      Wöchentlicher Themen-Refresh
+stats_scraper.py       Holt echte View-Zahlen vom Profil
+improver.py            Wertet Performance aus, schlägt Experimente vor
+scheduler.py           Ein Cron-Lauf: bedient alle fälligen Slots aller Accounts
+autopilot.py           Der Hauptlauf: prüfen · heilen · posten · messen · forschen · planen · melden
+brain.py               Das Gedächtnis (lokale SQLite, verlässt das Gerät nie)
+brain_seed.py          Füllt das Gedächtnis mit der gemeinsamen Strategie
+ideas_scout.py         Sucht online nach neuen Verdienstmöglichkeiten, bewertet sie
+daily_run.py           Älterer Tageslauf (vom Autopiloten abgelöst, bleibt funktionsfähig)
+main.py                Dauerprozess-Fallback ohne Cron
+JK24.command           Doppelklick auf dem Mac: Stand ansehen, Fragen beantworten
+install_autopilot_mac.sh  Richtet den Autopiloten per launchd ein (5x täglich)
 ```
+
+### Autopilot
+
+```bash
+python3 autopilot.py            # voller Durchgang
+python3 autopilot.py --kurz     # nur prüfen, heilen, posten
+python3 autopilot.py --bericht  # letzten Stand anzeigen
+```
+
+Der Autopilot ändert **niemals selbst seinen Programmcode**. Er repariert
+(Paket nachinstallieren, Platte aufräumen, Lauf wiederholen), misst, forscht
+und schlägt vor; Code-Änderungen landen als Vorschlag im Gedächtnis. Ein System,
+das sich unbeaufsichtigt umschreibt, ist irgendwann kaputt und niemand weiß warum.
+
+### Account-Portfolio
+
+Konfiguriert in `content/accounts.json` (wird beim ersten Lauf angelegt, enthält
+**keine Secrets** — die stehen in `.env`). Standard sind drei Accounts mit eigener
+Nische, eigenem Format und eigenen Posting-Zeiten. Begründung des Portfolio-Ansatzes
+und die Abschalt-Kriterien: STRATEGIE_10K.md, Abschnitt 3.
