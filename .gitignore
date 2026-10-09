@@ -20,3 +20,4 @@ __pycache__/
 assets/*.onnx
 assets/*.bin
 *TEMP_MPY*
+content/kai_story.local.md

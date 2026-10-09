@@ -391,6 +391,28 @@ LANGFORM-MODUS (überschreibt die Längenvorgaben oben):
 """
 
 
+STORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "content", "kai_story.local.md")
+
+
+def _load_story() -> str:
+    """Persoenliche Leitlinien (lokal, gitignored). Leer, wenn die Datei fehlt."""
+    try:
+        with open(STORY_FILE, encoding="utf-8") as f:
+            txt = f.read().strip()
+    except OSError:
+        return ""
+    if not txt:
+        return ""
+    return (
+        "PERSOENLICHE LEITLINIEN DES KANAL-BETREIBERS (echte Lebensgeschichte, haelt dich daran):\n"
+        "- Schreibe in Ich-Form, authentisch, aus diesem Leben heraus, nicht generisch.\n"
+        "- Verantwortung statt Schuld: Entscheidungen und Vertrauen gehoeren ihm, "
+        "Betrug bleibt die Tat der anderen. Nie andeuten, jemand habe Betrug verdient.\n"
+        "- Erfinde keine Details, die nicht im Material stehen.\n\n"
+        + txt[:6000] + "\n"
+    )
+
+
 def generate_script(theme_hint: str | None = None, length: str = "normal") -> dict:
     """Erzeugt ein einzelnes Skript. theme_hint optional, sonst wählt Claude aus Trends.
     length="long" -> 40-60s Langform mit Spannungsbogen und 6 Bildsegmenten."""
@@ -415,7 +437,9 @@ def generate_script(theme_hint: str | None = None, length: str = "normal") -> di
     if recent:
         strategy_ctx += "Diese Themen kamen zuletzt schon, wiederhole sie NICHT: " + "; ".join(recent) + "\n"
 
-    user_prompt = f"""{trend_context}
+    story_ctx = _load_story()
+    user_prompt = f"""{story_ctx}
+{trend_context}
 {strategy_ctx}
 
 {"Fokussiere dich auf dieses Thema: " + theme_hint if theme_hint else "Wähle ein Thema, das aktuell in der Mindset/Motivation-Nische zieht."}
