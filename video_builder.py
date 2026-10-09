@@ -124,9 +124,15 @@ _STOPWORDS = {"der", "die", "das", "und", "oder", "aber", "ist", "sind", "war", 
 # sonst reinem Schwarz-Weiß (street_bw) bzw. Weiß (cinematic) -> klassischer "Sin City"-
 # Effekt, zieht den Blick genau auf das Wort, das den Gedanken trägt.
 import os as _os
-_STYLE = _os.getenv("VISUAL_STYLE", "street_art")
-# street_art: Hintergrund ist rot/creme/schwarz -> Akzentwort in Spruehgelb, sonst gaebe es Rot auf Rot
-ACCENT_COLOR = (255, 212, 0, 255) if _STYLE == "street_art" else (214, 40, 40, 255)
+_STYLE = _os.getenv("VISUAL_STYLE", "cinema")
+# street_art: Hintergrund ist rot/creme/schwarz -> Akzentwort in Spruehgelb.
+# cinema: warmes Gold als Akzent (passt zum Teal/Orange-Grade), sonst Rot.
+if _STYLE == "street_art":
+    ACCENT_COLOR = (255, 212, 0, 255)
+elif _STYLE == "cinema":
+    ACCENT_COLOR = (255, 196, 70, 255)
+else:
+    ACCENT_COLOR = (214, 40, 40, 255)
 
 
 def _group_words_for_captions(words: list[dict], group_size=3) -> list[dict]:
@@ -350,7 +356,12 @@ def build_video(script: dict, audio_path: str, output_path: str) -> str:
 
     # Street-Art-Poster-Stil: Hook & Captions beide weiß (wie die Beton-Wand-Zitate),
     # kein Gelb-Akzent -> passt zur entsättigten Schwarz-Weiß-Grading der Hintergründe.
-    hook_fill = (255, 255, 255, 255) if backgrounds.VISUAL_STYLE == "street_bw" else (255, 235, 90, 255)
+    if backgrounds.VISUAL_STYLE == "street_bw":
+        hook_fill = (255, 255, 255, 255)
+    elif backgrounds.VISUAL_STYLE == "cinema":
+        hook_fill = (255, 196, 70, 255)  # warmes Gold, passt zum Teal/Orange-Grade
+    else:
+        hook_fill = (255, 235, 90, 255)
 
     events = []
     for g in caption_groups:

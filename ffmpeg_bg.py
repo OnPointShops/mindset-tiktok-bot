@@ -152,9 +152,14 @@ def _render(parts: list[dict], duration: float, out_path: str, bw: bool = True,
     if bw or style == "cinema":
         # gleiche Kurve wie früher: entsättigen, Kontrast 1.38 um Mittelgrau, Schwarz/Weiß nie ganz clippen
         if style == "cinema":
-            # Film-Look: leicht entsaettigt, kraeftiger Kontrast, Teal-Schatten / warme Lichter
-            chains.append("[cat]eq=contrast=1.14:saturation=0.88:gamma=0.97,"
-                          "colorbalance=rs=-0.05:bs=0.07:rh=0.06:bh=-0.05,format=yuv420p[bw]")
+            # Echter Kino-Grade: S-Kurve (Kontrast + angehobene Schatten), Teal in den
+            # Schatten / Orange in den Lichtern (Blockbuster-Look), sanfte Vignette.
+            chains.append(
+                "[cat]eq=contrast=1.06:saturation=0.90,"
+                "curves=all='0/0.03 0.25/0.19 0.5/0.5 0.75/0.82 1/0.98',"
+                "colorbalance=rs=-0.07:gs=-0.01:bs=0.09:rm=0.02:gm=0.00:bm=-0.02:"
+                "rh=0.07:gh=0.02:bh=-0.07,"
+                "vignette=angle=PI/4.2,format=yuv420p[bw]")
         elif style == "street_art":
             # Siebdruck-Poster (Obey/Stencil-Look): Graustufen -> 3 Farben: Schwarz / Rot / Creme
             chains.append(

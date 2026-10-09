@@ -108,7 +108,12 @@ man face fear closeup, woman smiling relieved, people laughing joy, lonely man t
 face determination). Jede Query soll ein anderes GEFÜHL zeigen, passend zum Satz: Angst, Schmerz, Einsamkeit, 
 Trotz, Erleichterung, Freude. KEINE TIERE in den Queries (kein dog, wolf, 
 bird, horse, lion ...), außer das Thema verlangt ausdrücklich ein Tier. Immer 'man', 'woman' oder 'people' 
-in die Query schreiben; Menschen in Straßen-/Urban-Szenen (Beton, Graffiti-Wände, Nacht, Stadt) sind ideal.
+in die Query schreiben; Menschen in Straßen-/Urban-Szenen (Beton, Graffiti-Wände, Nacht, Stadt) sind ideal. \
+KINO-LOOK PFLICHT: Hänge an JEDE Query ein filmisches Stichwort an, das echtes Spielfilm-Material \
+trifft, z.B. 'cinematic', 'slow motion', 'dramatic lighting', 'moody', 'rain', 'backlight', \
+'silhouette', 'golden hour'. Beispiel: 'lonely man walking rain night cinematic', 'exhausted boxer \
+rising dramatic lighting slow motion', 'man silhouette sunrise determination backlight'. So wirkt das \
+Footage wie ein Film, nicht wie ein beliebiger Clip.
 """
 
 

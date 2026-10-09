@@ -24,7 +24,7 @@ PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY", "")
 BG_PROVIDER = os.getenv("BG_PROVIDER", "auto")  # auto | procedural | pexels | pixabay
 # "street_bw"  -> raue Schwarz-Weiß-Optik wie Street-Art-Zitat-Poster (Beton, hoher Kontrast, Körnung)
 # "cinematic_color" -> der bisherige, farbige, dunkle Cinematic-Look
-VISUAL_STYLE = os.getenv("VISUAL_STYLE", "street_art")
+VISUAL_STYLE = os.getenv("VISUAL_STYLE", "cinema")
 
 # (oben, unten, Lichtfarbe) – dunkel & edel, damit weiße/gelbe Schrift immer lesbar bleibt
 PALETTES = [
@@ -425,7 +425,7 @@ def get_background(script: dict, duration: float):
     scale = duration / sum(raw)
     durations = [d * scale for d in raw]
 
-    if os.getenv("BG_RENDER", "ffmpeg") == "ffmpeg" and os.getenv("AI_SCENES", "1") != "0":
+    if os.getenv("BG_RENDER", "ffmpeg") == "ffmpeg" and os.getenv("AI_SCENES", "0") == "1":
         try:
             import scenes
             import ffmpeg_bg
