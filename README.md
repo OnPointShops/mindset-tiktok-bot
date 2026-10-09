@@ -150,7 +150,11 @@ brain_seed.py          Füllt das Gedächtnis mit der gemeinsamen Strategie
 ideas_scout.py         Sucht online nach neuen Verdienstmöglichkeiten, bewertet sie
 daily_run.py           Älterer Tageslauf (vom Autopiloten abgelöst, bleibt funktionsfähig)
 main.py                Dauerprozess-Fallback ohne Cron
-JK24.command           Doppelklick auf dem Mac: Stand ansehen, Fragen beantworten
+verkaufskit.py         Arbeitsprobe + Angebot + Gesprächsleitfaden für einen Betrieb
+freebie.py             Lead-Magnet und Landingpage (einzelne HTML-Dateien)
+einrichten.py          Einrichtungs-Assistent: fragt Schlüssel ab und prüft sie live
+MACBOOK_START.command  Doppelklick: richtet alles ein, von Null bis laufend
+JK24.command           Doppelklick: Stand ansehen, Fragen beantworten
 install_autopilot_mac.sh  Richtet den Autopiloten per launchd ein (5x täglich)
 ```
 

@@ -104,6 +104,60 @@ def t_disk():
     return f"{free} GB frei"
 
 
+def t_brain():
+    """Gedächtnis erreichbar und beschreibbar — ohne das verliert der Autopilot alles."""
+    import brain
+    brain.event("selftest", "Schreibprobe")
+    s = brain.status()
+    return (f"{s['ideen_neu']} Ideen, {s['erkenntnisse']} Erkenntnisse, "
+            f"{s['fragen_offen']} offene Frage(n)")
+
+
+def t_carousel():
+    """Karussell-Rendering live prüfen — eine kaputte Schrift fällt sonst erst beim Posten auf."""
+    import tempfile
+    import carousel
+    with tempfile.TemporaryDirectory() as d:
+        out = str(Path(d) / "t.png")
+        carousel.render_slide([{"type": "head", "text": "Testbild"},
+                               {"type": "text", "text": "Zwei Zeilen Fließtext zur Prüfung."}], out)
+        if Path(out).stat().st_size < 3_000:
+            raise RuntimeError("Karussell-Bild zu klein/leer")
+    return "Karussell rendert"
+
+
+def t_accounts():
+    """Portfolio-Konfiguration: hat überhaupt ein Account einen Veröffentlichungsweg?"""
+    import accounts as accounts_mod
+    accs = accounts_mod.enabled()
+    if not accs:
+        raise RuntimeError("Kein aktiver Account in content/accounts.json")
+    mit_weg = [a for a in accs if a.targets()]
+    if not mit_weg:
+        raise RuntimeError("Kein Account hat Zugangsdaten — nichts kann veröffentlicht werden")
+    geplant = sum(a.posts_per_day for a in mit_weg)
+    return f"{len(mit_weg)}/{len(accs)} Accounts bereit, {geplant} Beiträge/Tag geplant"
+
+
+def t_instagram():
+    """Nur prüfen, wenn Instagram überhaupt genutzt wird."""
+    import os
+    import accounts as accounts_mod
+    nutzt_ig = [a for a in accounts_mod.enabled() if "instagram" in a.platforms]
+    if not nutzt_ig:
+        return "übersprungen (kein Account nutzt Instagram)"
+    if not os.getenv("IG_ACCESS_TOKEN"):
+        raise RuntimeError("IG_ACCESS_TOKEN fehlt — Instagram-Accounts posten nicht")
+    import media_host
+    if not media_host.available():
+        raise RuntimeError("MEDIA_HOST/MEDIA_BASE_URL fehlt — Instagram kann die Dateien nicht abholen")
+    r = requests.get("https://graph.facebook.com/v23.0/me/accounts",
+                     params={"access_token": os.getenv("IG_ACCESS_TOKEN")}, timeout=20)
+    if r.status_code != 200:
+        raise RuntimeError(r.json().get("error", {}).get("message", f"HTTP {r.status_code}")[:150])
+    return f"Token gültig, {len(r.json().get('data', []))} Seite(n)"
+
+
 def cleanup_old_files(keep_days=7):
     """Räumt alte Videos/Audio auf, damit die Platte nicht vollläuft."""
     cutoff = datetime.now().timestamp() - keep_days * 86400
@@ -125,7 +179,11 @@ def run_selftest():
         _check("Piper-Stimme (Live-Test)", t_tts),
         _check("Pexels-API", t_pexels),
         _check("KI (Skripte)", t_ai),
-        _check("TikTok-Login", t_cookies),
+        _check("TikTok-Login", t_cookies, critical=False),
+        _check("Account-Portfolio", t_accounts),
+        _check("Gedächtnis", t_brain),
+        _check("Karussell-Rendering", t_carousel),
+        _check("Instagram-API", t_instagram, critical=False),
         _check("Speicherplatz", t_disk, critical=False),
     ]
     cleaned = cleanup_old_files()

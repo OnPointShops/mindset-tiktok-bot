@@ -28,6 +28,7 @@ import hashlib
 import json
 import logging
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -108,11 +109,28 @@ def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
-def _db() -> sqlite3.Connection:
-    con = sqlite3.connect(DB_PATH)
+@contextmanager
+def _db():
+    """
+    Verbindung zur Gedächtnis-Datei.
+
+    Drei Details, die hier wichtig sind:
+    - Die Verbindung wird am Ende WIRKLICH geschlossen. `with sqlite3.connect(...)`
+      allein schreibt zwar fest, schließt aber nicht — über viele Aufrufe hinweg
+      bleiben dann Dateihandles offen.
+    - timeout=15: Autopilot und JK24.command können gleichzeitig zugreifen.
+      Ohne Timeout bricht der zweite sofort mit "database is locked" ab.
+    - WAL-Modus: Lesen und Schreiben behindern sich nicht mehr gegenseitig.
+    """
+    con = sqlite3.connect(DB_PATH, timeout=15)
     con.row_factory = sqlite3.Row
-    con.executescript(SCHEMA)
-    return con
+    try:
+        con.execute("PRAGMA journal_mode=WAL")
+        con.executescript(SCHEMA)
+        yield con
+        con.commit()
+    finally:
+        con.close()
 
 
 # ── Ideen ──────────────────────────────────────────────────────────────────────

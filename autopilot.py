@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
-import shutil
+import signal
 import subprocess
 import sys
 import traceback
@@ -44,6 +44,37 @@ logging.basicConfig(
               logging.StreamHandler(sys.stdout)],
 )
 log = logging.getLogger("autopilot")
+
+
+# Harte Obergrenze pro Lauf. Ohne die kann ein haengender Download oder eine
+# langsame Installation den Lauf blockieren — und weil launchd alle paar Stunden
+# erneut startet, stapeln sich die Laeufe, bis der Mac kriecht. Lieber ein
+# abgebrochener Lauf mit Meldung als zehn Zombie-Prozesse.
+ZEITGRENZE_VOLL = 25 * 60
+ZEITGRENZE_KURZ = 8 * 60
+
+
+class Zeitueberschreitung(RuntimeError):
+    pass
+
+
+def _wecker(sekunden: int):
+    """Setzt einen Wecker, der den Lauf abbricht. Ohne SIGALRM wirkungslos."""
+    def ausgeloest(signum, frame):  # noqa: ARG001
+        dauer = f"{sekunden // 60} Minuten" if sekunden >= 60 else f"{sekunden} Sekunden"
+        raise Zeitueberschreitung(f"Lauf nach {dauer} abgebrochen")
+    try:
+        signal.signal(signal.SIGALRM, ausgeloest)
+        signal.alarm(sekunden)
+    except (AttributeError, ValueError):
+        pass          # Windows oder Nicht-Hauptthread: dann eben ohne Wecker
+
+
+def _wecker_aus():
+    try:
+        signal.alarm(0)
+    except (AttributeError, ValueError):
+        pass
 
 
 def _state() -> dict:
@@ -115,7 +146,7 @@ def _fix_paket_fehlt(fehler: dict) -> str | None:
     paket = m.group(1).split(".")[0]
     r = subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
                         "--break-system-packages", paket],
-                       capture_output=True, text=True, timeout=600)
+                       capture_output=True, text=True, timeout=300)
     return f"pip install {paket}" if r.returncode == 0 else None
 
 
@@ -140,7 +171,7 @@ def _fix_browser_fehlt(fehler: dict) -> str | None:
        "executable doesn't exist" not in fehler["meldung"].lower():
         return None
     r = subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"],
-                       capture_output=True, text=True, timeout=900)
+                       capture_output=True, text=True, timeout=600)
     return "Chromium nachinstalliert" if r.returncode == 0 else None
 
 
@@ -169,10 +200,19 @@ def _braucht_kai(fehler: dict) -> str | None:
 REPARATUREN = [_braucht_kai, _fix_paket_fehlt, _fix_platte_voll, _fix_browser_fehlt]
 
 
-def heilen() -> list[str]:
-    """Versucht jede bekannte Reparatur auf jeden offenen Fehler. Nie Code-Änderungen."""
+def heilen(max_reparaturen: int = 3) -> list[str]:
+    """
+    Versucht jede bekannte Reparatur auf jeden offenen Fehler. Nie Code-Änderungen.
+
+    Höchstens drei echte Reparaturen pro Lauf: Wenn zehn Pakete fehlen, ist etwas
+    Grundsätzliches kaputt, und zehn Installationen hintereinander lösen das nicht,
+    sie verbrauchen nur das Zeitbudget. Der nächste Lauf macht weiter.
+    """
     erledigt = []
     for fehler in brain.offene_fehler():
+        if len([e for e in erledigt if "an Kai" not in e]) >= max_reparaturen:
+            log.info("Reparatur-Grenze erreicht — Rest beim nächsten Lauf")
+            break
         for reparatur in REPARATUREN:
             try:
                 ergebnis = reparatur(fehler)
@@ -267,6 +307,59 @@ def strategie_auffrischen():
             brain.learn(lektion, "improver")
     except Exception as e:  # noqa: BLE001
         brain.log_error("improver", str(e))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  5b. WERKZEUGE NUTZEN — Dinge, die der Autopilot selbst anstoßen darf
+# ══════════════════════════════════════════════════════════════════════════════
+def werkzeuge() -> list[str]:
+    """
+    Kleine, sichere Automatismen, die sonst liegen bleiben, weil sie niemandem
+    auffallen. Keine Code-Änderungen, keine Außenwirkung ohne Kais Zutun.
+    """
+    getan = []
+
+    # Der Lead-Magnet wird mit echten Zahlen erst gut. Sobald genug Datenpunkte
+    # da sind, einmal neu erzeugen — dann steht die echte Tabelle drin.
+    try:
+        import csv
+        perf = config.CONTENT_DIR / "performance.csv"
+        if perf.exists():
+            with perf.open(encoding="utf-8") as f:
+                zeilen = sum(1 for _ in csv.DictReader(f))
+            schwelle = _state().get("freebie_bei", 0)
+            if zeilen >= 30 and zeilen >= schwelle + 30:
+                import freebie
+                leitfaden, anzahl = freebie.baue_leitfaden(
+                    "Die Hooks, die auf deutschem TikTok wirklich funktionieren", 50)
+                freebie.AUSGABE.mkdir(parents=True, exist_ok=True)
+                (freebie.AUSGABE / "freebie.html").write_text(leitfaden, encoding="utf-8")
+                st = _state(); st["freebie_bei"] = zeilen; _save_state(st)
+                getan.append(f"Lead-Magnet mit {zeilen} echten Datenpunkten neu erzeugt")
+                brain.learn(f"Lead-Magnet enthält jetzt eigene Zahlen aus {zeilen} Beiträgen — "
+                            f"das ist das Verkaufsargument gegenüber recycelten PDFs.", "autopilot")
+    except Exception as e:  # noqa: BLE001
+        brain.log_error("werkzeuge_freebie", str(e))
+
+    # Montags an den einzigen Umsatzweg erinnern, der vor Monat 5 Geld bringt.
+    try:
+        if datetime.now().weekday() == 0 and _einmal_taeglich("verkaufserinnerung"):
+            offen = [i for i in brain.top_ideen(20, status="neu")
+                     if i["titel"].startswith("Verkaufsgespräch:")]
+            if offen:
+                namen = ", ".join(i["titel"].split(": ", 1)[1] for i in offen[:3])
+                brain.frage_kai(f"Diese Verkaufsgespräche stehen noch offen: {namen}. "
+                                f"Schon angerufen?",
+                                "Arbeitsproben liegen fertig im Ordner verkauf/.", 2)
+            else:
+                brain.frage_kai("Welchen Betrieb sprichst du diese Woche an?",
+                                "Ich erstelle die Arbeitsprobe in 2 Minuten: "
+                                "python3 verkaufskit.py \"Name\" branche", 2)
+            getan.append("Wochen-Erinnerung Verkauf gesetzt")
+    except Exception as e:  # noqa: BLE001
+        brain.log_error("werkzeuge_verkauf", str(e))
+
+    return getan
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -382,22 +475,40 @@ def run(kurz: bool = False) -> str:
     start = datetime.now()
     log.info("═══ Autopilot startet (%s) ═══", "kurz" if kurz else "voll")
     brain.event("start", "Autopilot-Lauf", {"modus": "kurz" if kurz else "voll"})
+    _wecker(ZEITGRENZE_KURZ if kurz else ZEITGRENZE_VOLL)
 
-    ok, probleme = pruefen()
-    geheilt = heilen()
-    if geheilt:                       # nach einer Reparatur nochmal prüfen
-        ok, probleme = pruefen()
-
-    gepostet = posten() if ok else 0
-    if not ok:
-        probleme.append("Posten übersprungen — Selbsttest hat kritische Fehler gemeldet.")
-
+    ok, probleme, geheilt, gepostet = False, [], [], 0
     zahlen, plan = {}, {}
-    if not kurz:
-        zahlen = messen()
-        strategie_auffrischen()
-        entdecken()
-        plan = planen({"gepostet_heute": gepostet, "probleme": probleme, **zahlen})
+
+    try:
+        ok, probleme = pruefen()
+        geheilt = heilen()
+        if geheilt:                   # nach einer Reparatur nochmal prüfen
+            ok, probleme = pruefen()
+
+        gepostet = posten() if ok else 0
+        if not ok:
+            probleme.append("Posten übersprungen — Selbsttest hat kritische Fehler gemeldet.")
+
+        if not kurz:
+            zahlen = messen()
+            strategie_auffrischen()
+            entdecken()
+            geheilt += werkzeuge()
+            plan = planen({"gepostet_heute": gepostet, "probleme": probleme, **zahlen})
+
+    except Zeitueberschreitung as e:
+        # Kein Drama: Es wird trotzdem gemeldet, was bis hierhin lief, und der
+        # nächste Lauf setzt fort. Nur auffallen muss es.
+        log.error("%s", e)
+        probleme.append(f"{e} — der nächste Lauf macht weiter.")
+        brain.log_error("autopilot", str(e))
+    except Exception as e:  # noqa: BLE001
+        log.exception("Autopilot-Lauf abgebrochen")
+        probleme.append(f"Lauf abgebrochen: {e}")
+        brain.log_error("autopilot", f"{e}\n{traceback.format_exc(limit=2)}")
+    finally:
+        _wecker_aus()
 
     bericht = melden(gepostet, geheilt, zahlen, plan, probleme)
     dauer = (datetime.now() - start).seconds

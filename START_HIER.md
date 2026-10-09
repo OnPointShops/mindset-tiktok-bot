@@ -130,20 +130,65 @@ Punkt 1 und 3 kann ich nicht für dich machen. Alles andere schon.
 
 ---
 
-## Einrichten (einmalig, 10 Minuten)
+## Einrichten — ein Doppelklick
 
-Terminal öffnen, diese Zeilen nacheinander:
+**Doppelklick auf `MACBOOK_START.command`.**
+
+Das war's. Die Datei macht alles der Reihe nach und erklärt jeden Schritt
+im Fenster mit:
+
+1. Python prüfen
+2. ffmpeg und espeak installieren (fragt ggf. nach deinem Mac-Passwort)
+3. Python-Pakete installieren
+4. Deutsche Stimme laden (110 MB)
+5. **Zugangsschlüssel abfragen** — jede Frage erklärt, was sie kostet und wo
+   du den Wert herbekommst. Alles überspringbar mit Enter.
+6. Gedächtnis füllen
+7. Selbsttest
+8. Autopilot einschalten
+
+Dauert beim ersten Mal 10–15 Minuten, davon bist du 3 Minuten beschäftigt.
+Abbrechen und neu starten geht jederzeit — fertige Schritte werden übersprungen.
+
+Danach bleibt **ein einziger Handgriff** übrig, den TikTok bewusst einem
+Menschen vorbehält:
 
 ```bash
-cd ~/jk24-autopilot          # oder wo das Projekt liegt
-pip3 install -r requirements.txt --break-system-packages
-python3 brain_seed.py        # Gedächtnis füllen
-./install_autopilot_mac.sh   # Autopilot einschalten
+python3 uploader.py --login
 ```
 
-Danach einmal testen:
+Browser geht auf, du loggst dich ein, fertig.
+
+---
+
+## Die zwei Werkzeuge, die Geld bringen
+
+### 1. Verkaufs-Kit — für das Gespräch mit einem Betrieb
+
 ```bash
-python3 autopilot.py
+python3 verkaufskit.py "Malerbetrieb Schmitz" maler
 ```
 
-Wenn das durchläuft, bist du fertig. Ab dann macht er es allein.
+Erzeugt in zwei Minuten:
+- **vier fertige Beiträge** für genau diesen Betrieb (zeigbar auf dem Handy)
+- **ANGEBOT.md** — eine Seite zum Ausdrucken und Dalassen
+- **GESPRAECH.md** — Einstieg, die vier Einwände, die kommen, und der Abschluss
+
+Branchen: `handwerk` `maler` `physio` `fitness` `gastro` `auto` `immobilien`
+
+Der Unterschied zwischen „ich könnte für Sie Content machen" und „hier sind vier
+Beiträge, die ich für Ihren Betrieb gemacht habe" ist der ganze Auftrag.
+
+### 2. Lead-Magnet und Landingpage
+
+```bash
+python3 freebie.py
+```
+
+Erzeugt eine Landingpage mit Eintragsformular und den Leitfaden zum Verschenken.
+Zwei HTML-Dateien ohne Abhängigkeiten — laufen auf jedem Hoster, auch kostenlos
+bei Netlify. Anleitung liegt daneben in `output/freebie/README.md`.
+
+Sobald dein Kanal 30 eigene Datenpunkte hat, baut der Autopilot den Leitfaden
+von allein neu — dann mit deinen echten Zahlen statt mit allgemeinen Mustern.
+Das ist der Teil, den kein gekaufter Kurs hat.
