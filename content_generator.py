@@ -34,7 +34,7 @@ Erkenntnis klingt, als ein polierter Werbespruch.
 nicht danach optimieren, die Stimme/Message trägt das Video.
 - CTA soll einen "Tag jemanden, der das lesen muss"- oder Wiedererkennungs-Moment triggern \
 (Share-Trigger), nicht nur plump nach Likes fragen.
-- Der letzte Satz darf inhaltlich/emotional lose zum Hook zurückführen (Loop-Potenzial = \
+- Der letzte Satz SOLL inhaltlich/emotional zum Hook zurückführen (Loop-Potenzial = \
 Algorithmus-Bonus, da das Video beim Re-Watch weiterläuft statt neu zu starten).
 
 KLISCHEE-VERBOT (diese/ähnliche Sätze sind verbrannt, NIE verwenden):
@@ -69,7 +69,13 @@ geschnitten werden). Direkte, klare Sprache, keine Füllwörter, mindestens EIN 
 Bild/eine Szene (siehe TIEFE oben).
 - CTA: eine Zeile, die zu Kommentar/Share/Follow anregt, ohne verzweifelt zu wirken.
 - CAPTION: die Video-Beschreibung für TikTok (1-2 Sätze + relevante Frage an die Community)
-- HASHTAGS: 5-6 Hashtags, Mix aus breit (#mindset #motivation) und spezifisch zum Thema
+- HASHTAGS: GENAU 3 Hashtags (mehr verwaessert laut TikTok-Analysen 2026 das Signal): \
+1 breiter (#mindset) + 2 spezifische, deutschsprachige zum Thema.
+- SUCHBEGRIFF (TikTok-SEO): Waehle EIN deutsches Wort, nach dem Leute suchen (z.B. Rueckschlaege, \
+Selbstzweifel, Neuanfang, aufgeben). Es MUSS in den ersten zwei gesprochenen Saetzen vorkommen, \
+in der CAPTION stehen und als einer der 3 Hashtags auftauchen. Feld "keyword".
+- LOOP: Der letzte Satz fuehrt so zurueck auf den Hook, dass das Video beim Neustart nahtlos \
+weiterzulaufen scheint (Rewatch = staerkstes Reichweiten-Signal).
 
 Beispiel für den geforderten Ton (Thema/Wortlaut NICHT kopieren, nur Stil/Tiefe als Maßstab):
 Hook: "Die meisten geben genau einen Tag vor dem Durchbruch auf."
@@ -84,7 +90,8 @@ Gib AUSSCHLIESSLICH valides JSON zurück, keine Markdown-Codeblöcke, kein Flie�
   "body": "...",
   "cta": "...",
   "caption": "...",
-  "hashtags": ["...", "..."],
+  "hashtags": ["...", "...", "..."],
+  "keyword": "ein deutscher Suchbegriff",
   "format": "das verwendete Format-Label",
   "cover_slogan": "3-8 Wörter, wie von Hand auf eine Handfläche geschrieben: die Kernbotschaft als roher, zitierfähiger Slogan (darf zweiteilig sein, z.B. 'Sie sagen: Steh auf. Dann sehen sie dich fallen.'). Nicht identisch mit dem Hook, aber gleiche Aussage; keine Hashtags, keine Emojis.",
   "visual_queries": [
@@ -388,7 +395,7 @@ def _normalize_visual_queries(script: dict) -> dict:
 
 LONG_FORM_RULES = """
 LANGFORM-MODUS (überschreibt die Längenvorgaben oben):
-- BODY: 10-14 Sätze, sprechbar in 40-60 Sekunden. Baue einen echten Spannungsbogen:
+- BODY: 8-11 Sätze, sprechbar in 35-45 Sekunden (laengere Videos verlieren Zuschauer vor dem Ende). Baue einen echten Spannungsbogen:
   1) Unbequeme Ausgangslage/Schmerz  2) Eskalation: was es wirklich kostet  3) Wendepunkt/
   Erkenntnis (der Contrarian-Kern)  4) Konsequenz: was die wenigen anders machen  5) Auflösung.
 - Halte die Spannung über die GANZE Länge: alle 2-3 Sätze ein neues Bild, eine neue Wendung
