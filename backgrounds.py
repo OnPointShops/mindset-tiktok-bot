@@ -193,9 +193,55 @@ def _open_clip(path: str):
 _DL_COUNTER = itertools.count()
 
 
+_LAST_CDN = [0.0]
+
+
+def _cdn_get(url: str, timeout: int = 90, min_bytes: int = 0) -> bytes:
+    """GET mit Drosselung (Pixabay-CDN sperrt bei zu vielen schnellen Abrufen kurz) und
+    Pruefung: nur HTTP 200 mit echter Dateigroesse zaehlt. Fehlertexte werden NIE als Datei gespeichert."""
+    import time
+    err = ""
+    for attempt in range(4):
+        wait = 0.4 - (time.time() - _LAST_CDN[0])
+        if wait > 0:
+            time.sleep(wait)
+        _LAST_CDN[0] = time.time()
+        try:
+            r = requests.get(url, timeout=timeout)
+        except requests.RequestException as e:
+            err = str(e)[:120]
+            time.sleep(2 * (attempt + 1))
+            continue
+        if r.status_code == 429 or r.status_code >= 500:
+            err = f"HTTP {r.status_code}"
+            time.sleep(5 * (attempt + 1))
+            continue
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}")
+        if len(r.content) < min_bytes:
+            raise RuntimeError(f"Datei zu klein ({len(r.content)} Bytes)")
+        return r.content
+    raise RuntimeError(f"Download gescheitert ({err})")
+
+
+def _video_ok(path: str) -> bool:
+    """Prueft mit ffmpeg, ob die Datei wirklich ein abspielbares Video ist."""
+    import subprocess
+    import ffmpeg_bg
+    try:
+        r = subprocess.run([ffmpeg_bg.ffmpeg_exe(), "-v", "error", "-t", "0.3", "-i", path,
+                            "-f", "null", "-"], capture_output=True, timeout=60)
+        return r.returncode == 0
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _download(url: str, name: str) -> str:
     path = str(config.VIDEO_DIR / f"_bg_{name}_{next(_DL_COUNTER)}.mp4")
-    Path(path).write_bytes(requests.get(url, timeout=90).content)
+    Path(path).write_bytes(_cdn_get(url, 180, min_bytes=80_000))
+    if not _video_ok(path):
+        Path(path).unlink(missing_ok=True)
+        raise RuntimeError("Clip defekt/kein Video")
     return path
 
 
@@ -263,12 +309,10 @@ def _used_add(cid: str):
 _BLOCK_MOOD = {
     "happy", "happiness", "smile", "smiling", "smiles", "smiley", "laugh", "laughing", "laughter",
     "joy", "joyful", "fun", "funny", "party", "celebration", "celebrate", "cheerful", "cute",
-    "pretty", "beautiful", "beauty", "model", "models", "fashion", "girl", "girls", "teen",
-    "teenager", "love", "couple", "romance", "romantic", "kiss", "wedding", "bride", "dance",
-    "dancing", "christmas", "holiday", "holidays", "birthday", "kids", "kid", "child", "children",
-    "baby", "family", "vacation", "beach", "summer", "friends", "friendship", "selfie", "makeup",
-    "coffee", "cafe", "food", "cooking", "flowers", "playful", "enjoy", "enjoying", "relax",
-    "relaxing", "lifestyle", "shopping", "business meeting", "office", "teamwork", "handshake",
+    "beauty", "model", "models", "fashion", "girl", "girls", "teen", "teenager", "couple",
+    "romance", "romantic", "kiss", "wedding", "bride", "dance", "dancing", "christmas",
+    "birthday", "kids", "kid", "child", "children", "baby", "selfie", "makeup", "coffee",
+    "cafe", "food", "cooking", "playful",
 }
 # Was ernst, dunkel, filmisch wirkt, wird nach vorne sortiert.
 _DARK_MOOD = {
@@ -294,16 +338,13 @@ def _mood_score(tags: set) -> int:
     return s
 
 
-def _vision_rank(cands: list, query: str) -> list:
-    """KI-Cutter: Gemini schaut die Vorschaubilder an und bewertet jedes 0-10 fuer einen ernsten,
-    dunklen, filmischen Mindset-Kanal. Gute Laune, Models, Kinder, Essen usw. = 0 Punkte.
-    Gibt die Kandidaten mit Note >= 5 in Notenreihenfolge zurueck. Ohne Key/bei Fehler: unveraendert."""
+def _vision_scores(cands: list, query: str):
+    """KI-Cutter: Gemini bewertet die Vorschaubilder 0-10 fuer einen ernsten, dunklen,
+    filmischen Mindset-Kanal. Rueckgabe [(note, kandidat), ...] oder None (kein Key/Fehler)."""
     key = os.getenv("GEMINI_API_KEY", "")
-    if not (VISION_CHECK and key and cands):
-        return cands
-    pool = [c for c in cands if c.get("thumb")][:12]
-    if len(pool) < 2:
-        return cands
+    pool = [c for c in cands if c.get("thumb")][:8]
+    if not (VISION_CHECK and key and len(pool) >= 2):
+        return None
     parts = [{"text": (
         "Du bist Cutter fuer einen ERNSTEN, DUNKLEN, CINEASTISCHEN Mindset-Kanal "
         "(Kampf, Niederlage, Einsamkeit, Aufstehen, Entschlossenheit). Gesuchte Szene: "
@@ -313,23 +354,23 @@ def _vision_rank(cands: list, query: str) -> list:
         "eingeblendeter Text/Logos. Hohe Noten fuer: Gesichter mit Schmerz/Ernst/Entschlossenheit, "
         "Silhouetten, Nacht, Regen, Gegenlicht, Kampf, Training, einsame Figur. "
         'Antworte NUR mit JSON: {"scores": [Note Bild 1, Note Bild 2, ...]}')}]
-    used_pool = []
+    used_pool, fails = [], 0
     for c in pool:
         try:
-            r = requests.get(c["thumb"], timeout=10)
-            if r.status_code != 200 or len(r.content) < 500:
-                continue
-            parts.append({"text": f"Bild {len(used_pool) + 1}:"})
-            parts.append({"inline_data": {"mime_type": "image/jpeg",
-                                          "data": base64.b64encode(r.content).decode()}})
-            used_pool.append(c)
-        except requests.RequestException:
+            data = _cdn_get(c["thumb"], 12, min_bytes=800)
+        except Exception:  # noqa: BLE001
+            fails += 1
+            if fails >= 2:
+                break
             continue
+        parts.append({"text": f"Bild {len(used_pool) + 1}:"})
+        parts.append({"inline_data": {"mime_type": "image/jpeg", "data": base64.b64encode(data).decode()}})
+        used_pool.append(c)
     if len(used_pool) < 2:
-        return cands
+        return None
     try:
         import content_generator as cg
-        models = [cg._gemini_pick_model()] + [m for m in cg._gemini_available_models()][:3]
+        models = [cg._gemini_pick_model()] + list(cg._gemini_available_models())[:3]
     except Exception:  # noqa: BLE001
         models = [os.getenv("GEMINI_MODEL", "gemini-2.5-flash")]
     body = {"contents": [{"role": "user", "parts": parts}],
@@ -347,28 +388,35 @@ def _vision_rank(cands: list, query: str) -> list:
                 continue
             txt = "".join(p.get("text", "") for p in r.json()["candidates"][0]["content"].get("parts", []))
             scores = _json.loads(txt[txt.find("{"): txt.rfind("}") + 1]).get("scores", [])
-            rated = [(s, c) for s, c in zip(scores, used_pool) if isinstance(s, (int, float))]
-            good = [c for s, c in sorted(rated, key=lambda x: -x[0]) if s >= 5]
-            logger.info("KI-Cutter '%s': Noten %s -> %d brauchbar", query, [s for s, _ in rated], len(good))
-            return good
+            rated = [(float(s), c) for s, c in zip(scores, used_pool) if isinstance(s, (int, float))]
+            rated.sort(key=lambda x: -x[0])
+            logger.info("KI-Cutter '%s': Noten %s", query, [int(s) for s, _ in rated])
+            return rated
         except Exception as e:  # noqa: BLE001
             logger.warning("KI-Cutter (%s) fehlgeschlagen: %s", model, e)
-            continue
-    return cands
+    return None
 
 
-def _choose(cands: list, query: str, n: int) -> list:
-    """Filtert benutzte Clips + falsche Stimmung raus, sortiert dunkel/ernst nach vorne,
-    laesst den KI-Cutter final entscheiden."""
+def _qbonus(c) -> int:
+    q = c.get("q", 1.0)
+    return 3 if q >= 0.9 else (1 if q >= 0.66 else (-3 if q < 0.5 else 0))
+
+
+def _choose(cands: list, query: str, n: int, vision: bool = True) -> list:
+    """Benutzte + falsche Stimmung raus, dunkel/ernst/scharf nach vorn, KI-Cutter entscheidet.
+    Lehnt die KI alles Gute ab (Note < 3), kommt [] zurueck -> Ersatzsuche statt Notfall-Bild."""
     used = set(_used_load())
-    fresh = [c for c in cands if c["id"] not in used]
+    fresh = [c for c in cands if c["id"] not in used and _mood_ok(c["tags"])]
     if not fresh:
-        logger.info("Alle Treffer fuer '%s' schon benutzt -> nichts Neues", query)
+        logger.info("Keine neuen, passenden Treffer fuer '%s'", query)
         return []
-    fresh = [c for c in fresh if _mood_ok(c["tags"])]
     random.shuffle(fresh)
-    fresh.sort(key=lambda c: -_mood_score(c["tags"]))
-    picked = _vision_rank(fresh[:12], query)
+    fresh.sort(key=lambda c: -(_mood_score(c["tags"]) + _qbonus(c)))
+    top = fresh[:8]
+    scored = _vision_scores(top, query) if vision else None
+    if scored is None:
+        return top[:n]
+    picked = [c for s, c in scored if s >= 5] or [c for s, c in scored if s >= 3]
     return picked[:n]
 
 
@@ -385,18 +433,41 @@ def _pexels_cands(query: str) -> list:
             continue
         slug = (v.get("url") or "").rstrip("/").split("/")[-1]  # z.B. "man-walking-in-rain-12345"
         tags = set(slug.replace("-", " ").lower().split())
-        out.append({"id": f"pexels:{v['id']}", "url": files[0]["link"], "thumb": v.get("image"),
-                    "tags": tags})
+        f0 = files[0]
+        out.append({"id": f"pexels:{v['id']}", "url": f0["link"], "thumb": v.get("image"),
+                    "tags": tags, "q": _crop_quality(f0.get("width") or 0, f0.get("height") or 0)})
     return out
 
 
-def _pexels(query, duration):
-    picked = _choose(_pexels_cands(query), query, 1)
+def _pexels(query, duration, vision=True):
+    picked = _choose(_pexels_cands(query), query, 1, vision)
     if not picked:
         raise RuntimeError("Pexels: nichts Neues/Passendes")
     path = _download(picked[0]["url"], "pexels")
     _used_add(picked[0]["id"])
     return path
+
+
+def _crop_quality(w: int, h: int) -> float:
+    """Wie scharf wird der 9:16-Ausschnitt? 1.0 = volle 1080 Pixel Breite ohne Hochskalieren."""
+    if not w or not h:
+        return 0.0
+    return min(w, h * 9 / 16) / config.VIDEO_WIDTH
+
+
+def _best_rendition(v: dict):
+    """Kleinste Variante, deren 9:16-Ausschnitt scharf genug ist (>= 720 px breit); zu grosse
+    Dateien (> 70 MB) werden nur genommen, wenn nichts anderes reicht."""
+    opts = [v[k] for k in ("tiny", "small", "medium", "large") if v.get(k) and v[k].get("url")]
+    if not opts:
+        return None
+    sharp = [f for f in opts if _crop_quality(f.get("width") or 0, f.get("height") or 0) >= 0.66]
+    ok = [f for f in sharp if (f.get("size") or 0) <= 70_000_000]
+    if ok:
+        return ok[0]
+    if sharp:
+        return sharp[0]
+    return opts[-1]
 
 
 def _pixabay_video_cands(query: str) -> list:
@@ -407,24 +478,25 @@ def _pixabay_video_cands(query: str) -> list:
     out = []
     for hit in r.json().get("hits", []):
         v = hit.get("videos", {})
-        f = v.get("medium") or v.get("large") or v.get("small")
-        if not f or not f.get("url"):
+        f = _best_rendition(v)
+        if not f:
             continue
-        thumb = (f.get("thumbnail") or (v.get("small") or {}).get("thumbnail")
-                 or (v.get("tiny") or {}).get("thumbnail"))
+        thumb = ((v.get("tiny") or {}).get("thumbnail") or (v.get("small") or {}).get("thumbnail")
+                 or f.get("thumbnail"))
         if not thumb and hit.get("picture_id"):
             thumb = f"https://i.vimeocdn.com/video/{hit['picture_id']}_640x360.jpg"
-        out.append({"id": f"pixabay:{hit['id']}", "url": f["url"], "thumb": thumb, "tags": _tagset(hit)})
+        out.append({"id": f"pixabay:{hit['id']}", "url": f["url"], "thumb": thumb, "tags": _tagset(hit),
+                    "q": _crop_quality(f.get("width") or 0, f.get("height") or 0)})
     return out
 
 
-def _pixabay_clips(query, n=3):
+def _pixabay_clips(query, n=3, vision=True):
     """Laedt bis zu n NEUE, stimmungs- und KI-gepruefte Pixabay-Videos (lokale Pfade)."""
     cands = _pixabay_video_cands(query)
     if not cands:
         raise RuntimeError("Pixabay: nichts gefunden")
     paths = []
-    for i, c in enumerate(_choose(cands, query, n)):
+    for i, c in enumerate(_choose(cands, query, n, vision)):
         try:
             paths.append(_download(c["url"], f"pixabay_{i}"))
             _used_add(c["id"])
@@ -435,7 +507,7 @@ def _pixabay_clips(query, n=3):
     return paths
 
 
-def _pixabay_images(query, n=3):
+def _pixabay_images(query, n=3, vision=True):
     """Fallback: Pixabay-Fotos (lokale Pfade) fuer Ken-Burns-Hintergrund, gleiche Filter."""
     r = requests.get("https://pixabay.com/api/",
                      params={"key": PIXABAY_API_KEY, "q": query, "per_page": 100,
@@ -446,10 +518,11 @@ def _pixabay_images(query, n=3):
               "thumb": h.get("webformatURL") or h.get("previewURL"), "tags": _tagset(h)}
              for h in r.json().get("hits", []) if h.get("largeImageURL") or h.get("webformatURL")]
     paths = []
-    for i, c in enumerate(_choose(cands, query, n)):
+    for i, c in enumerate(_choose(cands, query, n, vision)):
         pth = str(config.VIDEO_DIR / f"_bgimg_{i}.jpg")
         try:
-            Path(pth).write_bytes(requests.get(c["url"], timeout=60).content)
+            Path(pth).write_bytes(_cdn_get(c["url"], 60, min_bytes=20_000))
+            Image.open(pth).verify()
             paths.append(pth)
             _used_add(c["id"])
         except Exception:  # noqa: BLE001
@@ -529,21 +602,21 @@ _DARK_FALLBACKS = [
 ]
 
 
-def _fetch_segment(q: str, d: float) -> list:
+def _fetch_segment(q: str, d: float, vision: bool = True) -> list:
     """Video vor Foto: Pixabay-Videos -> Pexels-Videos -> Pixabay-Fotos. Liste (pfad, ist_bild)."""
     if BG_PROVIDER in ("auto", "pixabay") and PIXABAY_API_KEY:
         try:
-            return [(p, False) for p in _pixabay_clips(q, n=2)]
+            return [(p, False) for p in _pixabay_clips(q, n=2, vision=vision)]
         except Exception as e:  # noqa: BLE001
             logger.warning("Pixabay-Videos '%s': %s", q, e)
     if BG_PROVIDER in ("auto", "pexels") and config.PEXELS_API_KEY:
         try:
-            return [(_pexels(q, d), False)]
+            return [(_pexels(q, d, vision), False)]
         except Exception as e:  # noqa: BLE001
             logger.warning("Pexels '%s': %s", q, e)
     if BG_PROVIDER in ("auto", "pixabay") and PIXABAY_API_KEY:
         try:
-            return [(p, True) for p in _pixabay_images(q, n=2)]
+            return [(p, True) for p in _pixabay_images(q, n=2, vision=vision)]
         except Exception as e:  # noqa: BLE001
             logger.warning("Pixabay-Fotos '%s': %s", q, e)
     return []
@@ -561,6 +634,8 @@ def _collect_parts(queries, durations):
             fb = _DARK_FALLBACKS[(i + random.randint(0, 99)) % len(_DARK_FALLBACKS)]
             logger.info("Segment '%s' ohne passenden neuen Clip -> Ersatzsuche '%s'", q, fb)
             got = _fetch_segment(fb, d)
+            if not got:
+                got = _fetch_segment(fb, d, vision=False)
         per_segment.append(got)
     pool = [g for seg in per_segment for g in seg]
     if not pool:
@@ -585,7 +660,30 @@ def _fast_background(queries, durations, duration):
     return VideoFileClip(out).without_audio().subclipped(0, duration)
 
 
-def get_background(script: dict, duration: float):
+def _sentence_durations(words, duration: float, n: int):
+    """Segmentlaengen so, dass jeder Szenenwechsel genau in der Pause NACH einem Satz liegt
+    (statt mitten im Satz). None, wenn die Saetze dafuer nicht reichen."""
+    if not words or n < 2:
+        return None
+    ends = []
+    for i, w in enumerate(words):
+        if str(w.get("word", "")).rstrip().endswith((".", "!", "?", "…", ":")):
+            nxt = words[i + 1]["start"] if i + 1 < len(words) else duration
+            ends.append((w["end"] + nxt) / 2)
+    cuts, last = [], 0.0
+    for k in range(1, n):
+        target = duration * k / n
+        cand = [e for e in ends if e > last + 2.2 and e < duration - 2.2 * (n - k)]
+        if not cand:
+            return None
+        c = min(cand, key=lambda e: abs(e - target))
+        cuts.append(c)
+        last = c
+    b = [0.0] + cuts + [duration]
+    return [b[i + 1] - b[i] for i in range(n)]
+
+
+def get_background(script: dict, duration: float, words=None):
     """1080x1920-Hintergrund in Audiolänge, cineastisch abgedunkelt. Nutzt 3 verschiedene
     visual_queries (Hook / Body-Mitte / CTA), proportional über die Dauer verteilt, statt
     EINER Query fürs ganze Video -> die Bildsprache entwickelt sich mit dem Text statt
@@ -607,6 +705,10 @@ def get_background(script: dict, duration: float):
     raw = [max(duration * w, min_seg) for w in weights]
     scale = duration / sum(raw)
     durations = [d * scale for d in raw]
+    aligned = _sentence_durations(words, duration, n)
+    if aligned:
+        durations = aligned
+        logger.info("Szenenwechsel auf Satzenden: %s", [round(d, 1) for d in durations])
 
     if os.getenv("BG_RENDER", "ffmpeg") == "ffmpeg" and os.getenv("AI_SCENES", "0") == "1":
         try:

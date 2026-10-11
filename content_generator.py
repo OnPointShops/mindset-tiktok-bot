@@ -123,7 +123,11 @@ KINO-LOOK PFLICHT: Hänge an JEDE Query ein filmisches Stichwort an, das echtes 
 trifft, z.B. 'cinematic', 'slow motion', 'dramatic lighting', 'moody', 'rain', 'backlight', \
 'silhouette', 'golden hour'. Beispiel: 'lonely man walking rain night cinematic', 'exhausted boxer \
 rising dramatic lighting slow motion', 'man silhouette sunrise determination backlight'. So wirkt das \
-Footage wie ein Film, nicht wie ein beliebiger Clip.
+Footage wie ein Film, nicht wie ein beliebiger Clip. \
+DURCHGEHENDE HAUPTFIGUR (damit das Video wie EIN Film wirkt, nicht wie zusammengewuerfelte Clips): \
+Lege EINE Figur fest (z.B. 'man in black hoodie' oder 'bearded man dark jacket') und EINE Welt \
+(z.B. 'night city rain' oder 'foggy mountains dawn') und schreibe BEIDES in jede Query. Die Queries \
+erzaehlen nacheinander, was DIESE Figur in DIESER Welt erlebt: Tiefpunkt -> Kampf -> Aufstehen.
 """
 
 

@@ -102,29 +102,42 @@ def _street_marks(img, style="street_modern"):
     return Image.alpha_composite(img, layer)
 
 
+FADE = 0.4  # Sekunden weiche Ueberblendung zwischen den Szenen
+
+
 def render_background(parts, duration, out_path, bw=True, style="street_bw"):
-    """Erst mit Zoom; scheitert die lokale ffmpeg-Version daran, nochmal ohne Zoom (statisch, aber schnell)."""
-    try:
-        return _render(parts, duration, out_path, bw, style, zoom=True)
-    except RuntimeError as e:
-        logger.warning("ffmpeg mit Zoom fehlgeschlagen (%s) -> Versuch ohne Zoom", str(e)[:300])
-        return _render(parts, duration, out_path, bw, style, zoom=False)
+    """Beste Variante zuerst (Zoom + Ueberblendungen); scheitert die lokale ffmpeg-Version
+    daran, Schritt fuer Schritt einfacher: ohne Ueberblendung, dann ohne Zoom."""
+    last = None
+    for zoom, fade in ((True, FADE), (True, 0.0), (False, 0.0)):
+        try:
+            return _render(parts, duration, out_path, bw, style, zoom=zoom, fade=fade)
+        except RuntimeError as e:
+            last = e
+            logger.warning("ffmpeg (zoom=%s, fade=%s) fehlgeschlagen (%s) -> einfacher", zoom, fade, str(e)[:300])
+    raise last
 
 
 def _render(parts: list[dict], duration: float, out_path: str, bw: bool = True,
-            style: str = "street_bw", zoom: bool = True) -> str:
+            style: str = "street_bw", zoom: bool = True, fade: float = 0.0) -> str:
     """parts: [{"path": str, "dur": float, "image": bool}, ...] in Reihenfolge; Summe(dur) ~ duration.
     Schreibt ein stummes 1080x1920/30fps-H.264-Video exakt `duration` Sekunden lang nach out_path."""
     if not parts:
         raise RuntimeError("Keine Hintergrund-Quellen")
     overlay = _overlay_png(Path(out_path).with_suffix(".overlay.png"), style)
 
+    n = len(parts)
+    if n < 2 or min(p["dur"] for p in parts) < fade + 0.6:
+        fade = 0.0
     cmd = [ffmpeg_exe(), "-y", "-loglevel", "error"]
-    for p in parts:
+    for i, p in enumerate(parts):
+        # bei Ueberblendung wird jeder Clip (ausser dem letzten) um die Blendzeit verlaengert,
+        # damit die Gesamtlaenge exakt gleich bleibt
+        t = p["dur"] + (fade if i < n - 1 else 0.0)
         if p.get("image"):
-            cmd += ["-loop", "1", "-t", f"{p['dur']:.3f}", "-i", p["path"]]
+            cmd += ["-loop", "1", "-t", f"{t:.3f}", "-i", p["path"]]
         else:
-            cmd += ["-stream_loop", "-1", "-t", f"{p['dur']:.3f}", "-i", p["path"]]
+            cmd += ["-stream_loop", "-1", "-t", f"{t:.3f}", "-i", p["path"]]
     cmd += ["-loop", "1", "-i", overlay]
     ov_idx = len(parts)
 
@@ -137,16 +150,24 @@ def _render(parts: list[dict], duration: float, out_path: str, bw: bool = True,
         if move in ("pan_l", "pan_r") and zoom:
             # Schwenk: Bild 18% groesser, Ausschnitt wandert seitlich
             x = "(iw-ow)*(t/%.3f)" % d if move == "pan_r" else "(iw-ow)*(1-t/%.3f)" % d
-            chains.append(base + f"scale={int(W * 1.18) // 2 * 2}:{int(H * 1.18) // 2 * 2}:flags=bilinear,"
-                          f"crop={W}:{H}:x='{x}':y='(ih-oh)/2',setsar=1,setpts=PTS-STARTPTS[v{i}]")
+            chains.append(base + f"scale={int(W * 1.18) // 2 * 2}:{int(H * 1.18) // 2 * 2}:flags=lanczos,"
+                          f"crop={W}:{H}:x='{x}':y='(ih-oh)/2',setsar=1,format=yuv420p,setpts=PTS-STARTPTS[v{i}]")
             continue
         grow = f"(1+{z}*t/{d:.3f})" if move != "pull" else f"(1+{z}*(1-t/{d:.3f}))"
         chains.append(
             base +
-            f"scale=w='2*trunc({W}*{grow}/2)':h='2*trunc({H}*{grow}/2)':eval=frame:flags=bilinear,"
-            f"crop={W}:{H},setsar=1,setpts=PTS-STARTPTS[v{i}]")
-    concat_in = "".join(f"[v{i}]" for i in range(len(parts)))
-    chains.append(f"{concat_in}concat=n={len(parts)}:v=1:a=0[cat]")
+            f"scale=w='2*trunc({W}*{grow}/2)':h='2*trunc({H}*{grow}/2)':eval=frame:flags=bicubic,"
+            f"crop={W}:{H},setsar=1,format=yuv420p,setpts=PTS-STARTPTS[v{i}]")
+    if fade > 0:
+        prev, off = "[v0]", 0.0
+        for i in range(1, n):
+            off += parts[i - 1]["dur"]
+            lab = "[cat]" if i == n - 1 else f"[x{i}]"
+            chains.append(f"{prev}[v{i}]xfade=transition=fade:duration={fade:.3f}:offset={off:.3f}{lab}")
+            prev = lab
+    else:
+        concat_in = "".join(f"[v{i}]" for i in range(n))
+        chains.append(f"{concat_in}concat=n={n}:v=1:a=0[cat]")
 
     look = "[cat]"
     if bw or style == "cinema":

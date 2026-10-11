@@ -347,11 +347,11 @@ def build_video(script: dict, audio_path: str, output_path: str) -> str:
     audio = AudioFileClip(audio_path)
     duration = audio.duration
 
-    # 1. Hintergrund (Stock oder prozedural, siehe backgrounds.py)
-    bg = backgrounds.get_background(script, duration)
-
-    # 2. Auto-Captions via Whisper-Timings
+    # 1. Wort-Timings zuerst: daraus kommen Captions UND die Szenenwechsel auf Satzenden
     words = get_word_timings(audio_path, script.get("full_voiceover_text", ""), duration)
+
+    # 2. Hintergrund (Stock oder prozedural, siehe backgrounds.py)
+    bg = backgrounds.get_background(script, duration, words=words)
     caption_groups = _group_words_for_captions(words, group_size=3)
 
     # Street-Art-Poster-Stil: Hook & Captions beide weiß (wie die Beton-Wand-Zitate),
@@ -381,7 +381,10 @@ def build_video(script: dict, audio_path: str, output_path: str) -> str:
     final = VideoClip(make_frame, duration=duration).with_audio(audio)
     final.write_videofile(
         output_path, fps=config.VIDEO_FPS, codec="libx264", audio_codec="aac",
-        threads=4, preset="veryfast", logger="bar",
+        audio_bitrate="192k", threads=4, preset="medium", logger="bar",
+        # hohe Qualitaet fuer den Upload (TikTok komprimiert selbst nochmal): ~3-5 Mbit/s statt 1
+        ffmpeg_params=["-crf", "18", "-profile:v", "high", "-pix_fmt", "yuv420p",
+                       "-movflags", "+faststart"],
     )
 
     # Aufräumen
