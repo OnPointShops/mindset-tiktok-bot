@@ -53,6 +53,10 @@ Dann siehst du:
 Kein Terminal, keine Befehle. Wenn du mehr wissen willst:
 Datei `brain/GEDAECHTNIS.md` öffnen — da steht alles drin, was wir je herausgefunden haben.
 
+Neu: Jedes Skript geht jetzt durch eine kleine Redaktion — ein Lektor benotet
+und verbessert es, ein Compliance-Prüfer sperrt, was rechtlich Ärger machen
+könnte. Im Bericht steht dazu eine Zeile ("Redaktion heute"). Du musst nichts tun.
+
 ---
 
 ## Das Gedächtnis — das, was du dir gewünscht hast

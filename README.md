@@ -90,6 +90,40 @@ python3 accounts.py     # welcher Account postet wann, welche Plattformen sind v
 
 ---
 
+## Das Team — wer hier arbeitet
+
+Jedes Skript geht durch eine kleine Redaktion, bevor es gerendert wird.
+Übersicht und Arbeitsprotokoll: `python3 team.py`
+
+| Mitarbeiter | Aufgabe | Wann |
+|---|---|---|
+| Autor | schreibt das Skript | wenn der Vorrat knapp wird |
+| **Lektor** | benotet 1–10 (Hook, Sog, Konkretheit, Loop), schreibt unter Note 7 neu | vor jedem Rendern |
+| **Compliance-Prüfer** | sperrt Heil- und Einkommensversprechen, setzt die Werbekennzeichnung | vor jedem Rendern |
+| **Analyst** | vergleicht echte Abrufe nach Format, Länge und Lektor-Note | täglich |
+| Späher · Stratege · Planer | neue Umsatzwege · Content-Strategie · nächster Schritt | täglich |
+
+Fett = neu. Drei Dinge, die du wissen solltest:
+
+- **Fällt ein Prüfer aus, wird trotzdem gepostet.** Kein Netz oder leeres
+  Kontingent hält den Betrieb nicht an. Ausnahme: Ein Wortfilter sperrt
+  eindeutige Heil- und Geldversprechen auch ohne KI.
+- **Der Compliance-Prüfer ersetzt keinen Anwalt.** Er fängt die Fälle ab, bei
+  denen ein vorsichtiger Redakteur "so nicht" sagen würde. Bei Affiliate-Links
+  und bezahlten Kooperationen bleibt die Kennzeichnung deine Verantwortung.
+- **Ob der Lektor etwas bringt, misst der Analyst selbst.** Er vergleicht die
+  Abrufe überarbeiteter Skripte mit den Original-Fassungen — ab 12 gemessenen
+  Beiträgen. Wenn der Lektor nichts bringt, steht das im Gedächtnis.
+
+Kosten: zwei zusätzliche KI-Aufrufe pro Skript, mit Gemini im kostenlosen
+Kontingent. Abschalten: `TEAM_AKTIV=0` in `.env`.
+
+Bewusst **kein** Agenten-Framework (CrewAI, LangGraph, Agent SDKs): Deren
+Nutzen sind Rollen und Ablaufsteuerung. Die Ablaufsteuerung hat dieses Projekt
+schon; die Rollen sind je ein Prompt. Begründung im Kopf von `team.py`.
+
+---
+
 ## Bewusste Design-Entscheidungen — und ihre Kompromisse
 
 **TTS: Kokoro (lokal, 0€) statt Cloud-TTS.** Kokoro ist ein Englisch-Modell;
@@ -148,6 +182,7 @@ autopilot.py           Der Hauptlauf: prüfen · heilen · posten · messen · f
 brain.py               Das Gedächtnis (lokale SQLite, verlässt das Gerät nie)
 brain_seed.py          Füllt das Gedächtnis mit der gemeinsamen Strategie
 ideas_scout.py         Sucht online nach neuen Verdienstmöglichkeiten, bewertet sie
+team.py                Die Redaktion: Lektor, Compliance-Prüfer, Analyst — plus Übersicht aller KI-Mitarbeiter
 daily_run.py           Älterer Tageslauf (vom Autopiloten abgelöst, bleibt funktionsfähig)
 main.py                Dauerprozess-Fallback ohne Cron
 JK24.command           Doppelklick auf dem Mac: Stand ansehen, Fragen beantworten

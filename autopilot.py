@@ -1,6 +1,6 @@
 """
 Der Autopilot. Läuft mehrmals täglich auf dem MacBook und macht einen
-kompletten Durchgang: prüfen → heilen → messen → posten → entdecken → planen → melden.
+kompletten Durchgang: prüfen → heilen → posten → messen → entdecken → auswerten → planen → melden.
 
 SICHERHEITSGRENZE — bewusst und nicht verhandelbar:
 Der Autopilot ändert NIEMALS selbst seinen eigenen Programmcode. Er darf
@@ -269,6 +269,18 @@ def strategie_auffrischen():
         brain.log_error("improver", str(e))
 
 
+def team_analyse():
+    """Der Analyst (team.py) sucht in den Abrufzahlen nach Mustern. Läuft VOR dem
+    Planen, damit der Plan des Tages die neuen Erkenntnisse schon kennt."""
+    if not _einmal_taeglich("analyst"):
+        return
+    try:
+        import team
+        team.analyse()
+    except Exception as e:  # noqa: BLE001
+        brain.log_error("team_analyst", str(e))
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  6. PLANEN — was ist der nächste sinnvolle Schritt?
 # ══════════════════════════════════════════════════════════════════════════════
@@ -348,6 +360,13 @@ def melden(gepostet: int, geheilt: list[str], zahlen: dict, plan: dict, probleme
     z.append(f"**Heute gepostet:** {gepostet}  ·  "
              f"**Views gesamt:** {zahlen.get('views_gesamt', '—')}  ·  "
              f"**Trend 14 Tage:** {zahlen.get('trend_14_tage_prozent', '—')} %")
+    try:
+        import team
+        team_zeile = team.kurzbericht()
+    except Exception:  # noqa: BLE001
+        team_zeile = ""
+    if team_zeile:
+        z.append(f"**Redaktion heute:** {team_zeile}")
     if geheilt:
         z.append(f"**Selbst repariert:** {'; '.join(_einzeilig(g, 60) for g in geheilt[:3])}")
     z.append("")
@@ -397,6 +416,7 @@ def run(kurz: bool = False) -> str:
         zahlen = messen()
         strategie_auffrischen()
         entdecken()
+        team_analyse()
         plan = planen({"gepostet_heute": gepostet, "probleme": probleme, **zahlen})
 
     bericht = melden(gepostet, geheilt, zahlen, plan, probleme)

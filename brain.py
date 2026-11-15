@@ -10,6 +10,7 @@ ins Git-Repo kommt. Darin steht alles, was wir gemeinsam herausfinden:
   metrics    Zahlen über die Zeit (Views, Follower, Umsatz)
   learnings  Was funktioniert hat und was nicht
   events     Protokoll jedes Autopilot-Laufs
+  team_log   Was jeder KI-Mitarbeiter wann getan hat (siehe team.py)
 
 Warum SQLite und keine Cloud-Lösung: Das Gedächtnis enthält Geschäftszahlen,
 Strategien und Zugangs-Metadaten. Je weniger Dienste das sehen, desto besser.
@@ -99,6 +100,12 @@ CREATE TABLE IF NOT EXISTS fragen (
     status TEXT DEFAULT 'offen',       -- offen | beantwortet
     erstellt TEXT, beantwortet TEXT
 );
+CREATE TABLE IF NOT EXISTS team_log (
+    id INTEGER PRIMARY KEY,
+    zeit TEXT, mitarbeiter TEXT, ergebnis TEXT,   -- ergebnis: geprueft | ok | korrigieren | sperren | ausfall | ...
+    text TEXT DEFAULT '', wert REAL, dauer_s REAL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_team_zeit ON team_log(zeit);
 CREATE INDEX IF NOT EXISTS idx_metrics_datum ON metrics(datum);
 CREATE INDEX IF NOT EXISTS idx_events_zeit ON events(zeit);
 """
@@ -292,6 +299,34 @@ def letzte_events(n: int = 30) -> list[dict]:
     with _db() as con:
         return [dict(r) for r in con.execute(
             "SELECT * FROM events ORDER BY id DESC LIMIT ?", (n,)).fetchall()]
+
+
+# ── Team: was jeder KI-Mitarbeiter getan hat ───────────────────────────────────
+def team_log(mitarbeiter: str, ergebnis: str, text: str = "", wert: float | None = None,
+             dauer_s: float = 0):
+    with _db() as con:
+        con.execute("INSERT INTO team_log (zeit, mitarbeiter, ergebnis, text, wert, dauer_s) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (_now(), mitarbeiter, ergebnis, text, wert, round(dauer_s, 1)))
+
+
+def team_bilanz(tage: int = 7) -> dict:
+    """Je Mitarbeiter: wie oft welches Ergebnis. Beim Lektor zusätzlich die Durchschnittsnote."""
+    seit = (datetime.now() - timedelta(days=tage)).isoformat(timespec="seconds")
+    bilanz: dict[str, dict] = {}
+    with _db() as con:
+        for r in con.execute("SELECT mitarbeiter, ergebnis, COUNT(*) AS n, AVG(wert) AS schnitt "
+                             "FROM team_log WHERE zeit >= ? GROUP BY mitarbeiter, ergebnis", (seit,)):
+            bilanz.setdefault(r["mitarbeiter"], {})[r["ergebnis"]] = r["n"]
+            if r["mitarbeiter"] == "lektor" and r["ergebnis"] == "geprueft" and r["schnitt"] is not None:
+                bilanz["lektor"]["schnitt"] = round(r["schnitt"], 1)
+    return bilanz
+
+
+def team_letzte(n: int = 10) -> list[dict]:
+    with _db() as con:
+        return [dict(r) for r in con.execute(
+            "SELECT * FROM team_log ORDER BY id DESC LIMIT ?", (n,)).fetchall()]
 
 
 # ── Für die KI: alles Wichtige in einem Block ──────────────────────────────────
