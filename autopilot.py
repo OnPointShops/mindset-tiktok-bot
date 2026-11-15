@@ -371,6 +371,11 @@ def melden(gepostet: int, geheilt: list[str], zahlen: dict, plan: dict, probleme
     (BRIEF_DIR / f"{datetime.now():%Y-%m-%d}.md").write_text(text, encoding="utf-8")
     (BRIEF_DIR / "latest.md").write_text(text, encoding="utf-8")
     brain.export_markdown()
+    try:
+        import obsidian_sync
+        obsidian_sync.schreiben(text)
+    except Exception as e:
+        brain.log_error("obsidian", str(e))
 
     kurz = plan.get("naechster_schritt", "") or (fragen[0]["frage"] if fragen else "nichts zu tun")
     notify(f"{ampel} JK24-Autopilot", f"{gepostet} gepostet. {kurz[:90]}")
@@ -382,6 +387,12 @@ def run(kurz: bool = False) -> str:
     start = datetime.now()
     log.info("═══ Autopilot startet (%s) ═══", "kurz" if kurz else "voll")
     brain.event("start", "Autopilot-Lauf", {"modus": "kurz" if kurz else "voll"})
+
+    try:                              # Kais Antworten/Ideen aus Obsidian zuerst holen
+        import obsidian_sync
+        obsidian_sync.einlesen()
+    except Exception as e:
+        brain.log_error("obsidian", str(e))
 
     ok, probleme = pruefen()
     geheilt = heilen()

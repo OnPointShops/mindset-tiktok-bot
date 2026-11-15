@@ -35,6 +35,11 @@ POSTS_PER_DAY = int(os.getenv("POSTS_PER_DAY", "1"))
 POST_TIME = os.getenv("POST_TIME", "18:30")
 TIMEZONE = os.getenv("TIMEZONE", "Europe/Berlin")
 
+# --- Obsidian (optional) ---
+# Pfad zum Vault, z.B. ~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Kai
+OBSIDIAN_VAULT = os.getenv("OBSIDIAN_VAULT", "").strip()
+OBSIDIAN_ORDNER = os.getenv("OBSIDIAN_ORDNER", "JK24 Autopilot").strip() or "JK24 Autopilot"
+
 # --- Pfade ---
 CONTENT_DIR = BASE_DIR / "content"
 VIDEO_DIR = BASE_DIR / "videos"

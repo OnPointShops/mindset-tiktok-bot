@@ -146,6 +146,7 @@ improver.py            Wertet Performance aus, schlägt Experimente vor
 scheduler.py           Ein Cron-Lauf: bedient alle fälligen Slots aller Accounts
 autopilot.py           Der Hauptlauf: prüfen · heilen · posten · messen · forschen · planen · melden
 brain.py               Das Gedächtnis (lokale SQLite, verlässt das Gerät nie)
+obsidian_sync.py       Gedächtnis <-> Obsidian-Vault (Dashboard, Ideen, Fragen, Inbox)
 brain_seed.py          Füllt das Gedächtnis mit der gemeinsamen Strategie
 ideas_scout.py         Sucht online nach neuen Verdienstmöglichkeiten, bewertet sie
 daily_run.py           Älterer Tageslauf (vom Autopiloten abgelöst, bleibt funktionsfähig)

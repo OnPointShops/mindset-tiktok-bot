@@ -53,6 +53,13 @@ Dann siehst du:
 Kein Terminal, keine Befehle. Wenn du mehr wissen willst:
 Datei `brain/GEDAECHTNIS.md` öffnen — da steht alles drin, was wir je herausgefunden haben.
 
+**Oder in Obsidian:** In `.env` `OBSIDIAN_VAULT=/Pfad/zu/deinem/Vault` eintragen. Dann
+liegt nach jedem Autopilot-Lauf ein Ordner `JK24 Autopilot` im Vault: Dashboard,
+eine Notiz je Idee und je Frage, Tagesberichte. Zurück geht es auch:
+Frage beantworten = unter „Deine Antwort" schreiben · Idee steuern = `status:` ändern ·
+Einfall = Zeile in `01 Inbox.md` (`idee: …`, `erkenntnis: …`, `entscheidung: A -> B`).
+Von Hand: `python3 obsidian_sync.py`
+
 ---
 
 ## Das Gedächtnis — das, was du dir gewünscht hast
