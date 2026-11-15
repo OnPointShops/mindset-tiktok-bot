@@ -240,6 +240,7 @@ autopilot.py           Der Hauptlauf: prüfen · heilen · posten · messen · f
 brain.py               Das Gedächtnis (lokale SQLite, verlässt das Gerät nie)
 brain_seed.py          Füllt das Gedächtnis mit der gemeinsamen Strategie
 ideas_scout.py         Sucht online nach neuen Verdienstmöglichkeiten, bewertet sie
+app/                   Der Leitstand: die Handy-App (Vorlage, Bauskript, fertige Seite)
 hauptagent.py          Der Hauptagent: verteilt Aufträge, prüft, kündigt und besetzt Agenten, führt die Kasse
 .claude/agents/        Die Fachagenten als Textdateien (Recht, Steuern, Buchhaltung, Marketing, Grafik, …)
 CLAUDE.md              Was Claude zu Beginn jeder Sitzung liest: Rolle als Hauptagent, Regeln fürs Team
