@@ -1,0 +1,4 @@
+# Entwurf: Suchmaschinen sollen die Seite noch nicht aufnehmen.
+# Beim Start "Disallow: /" durch "Allow: /" ersetzen (siehe README.md).
+User-agent: *
+Disallow: /

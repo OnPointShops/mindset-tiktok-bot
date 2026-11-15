@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JK24 – Verkaufsautomaten mit Altersprüfung für Standorte in der Region Trier</title>
+<meta name="description" content="JK24 stellt digitale Verkaufsautomaten mit technischer Altersprüfung bei Standortpartnern in der Region Trier auf und betreibt sie. Informationen für Standortpartner, Vermieter und Behörden.">
+<!-- Solange die Seite ein Entwurf ist, soll keine Suchmaschine sie aufnehmen. Beim Start diese Zeile löschen. -->
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#080d1f">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body class="entwurf">
+<a class="skip" href="#inhalt">Zum Inhalt springen</a>
+<div class="draftbar"><div class="wrap">Entwurf, nicht veröffentlicht. Gepunktet unterstrichene Angaben muss JK24 noch bestätigen.</div></div>
+
+<header class="head">
+  <div class="wrap">
+    <a class="logo" href="index.html" aria-label="JK24 Startseite">JK<b>24</b></a>
+    <nav class="nav" aria-label="Hauptmenü">
+      <a href="#partner">Für Standortpartner</a>
+      <a href="#ablauf">Ablauf</a>
+      <a href="#rechner">Rechner</a>
+      <a href="jugendschutz.html">Jugendschutz</a>
+      <a href="#kontakt">Kontakt</a>
+    </nav>
+  </div>
+</header>
+
+<main id="inhalt">
+
+<section class="hero">
+  <div class="wrap hero__grid">
+    <div class="stack stack--l">
+      <div class="stack">
+        <p class="label">Automatenbetrieb · Region Trier</p>
+        <h1>Verkaufs&shy;automaten, die erst das Alter prüfen.</h1>
+        <p class="lead">JK24 stellt digitale Verkaufsautomaten bei Standortpartnern auf und betreibt sie. <span class="offen">Aufstellung, Befüllung, Wartung und Abrechnung übernehmen wir.</span> Ein Fach öffnet sich erst, wenn die Altersprüfung am Gerät bestanden ist.</p>
+      </div>
+      <div class="btnrow">
+        <a class="btn btn--main" href="#kontakt">Standort anfragen</a>
+        <a class="btn btn--line" href="#partner">Was Standortpartner wissen müssen</a>
+      </div>
+      <ul class="hero__facts">
+        <li>Sortiment: E-Zigaretten und Zubehör</li>
+        <li>Abgabe nur an Erwachsene</li>
+        <li>Schriftlicher Vertrag je Standort</li>
+      </ul>
+    </div>
+
+    <!-- Die Darstellung zeigt die Prüf- und Sperrlogik, keine Produkte. -->
+    <div class="demo" id="pruefung" aria-labelledby="demo-h">
+      <h2 id="demo-h" class="label">So läuft die Prüfung am Gerät</h2>
+      <div class="machine" id="machine" data-res="ok" role="img" aria-label="Schematische Darstellung eines Verkaufsautomaten mit nummerierten Fächern, Anzeige, Kartenleser, Bezahlfeld und Ausgabe">
+        <div class="m-sign">JK24 <span id="m-clock">--:--</span></div>
+        <div class="m-slots" id="m-slots"></div>
+        <div class="m-panel">
+          <div class="m-screen"><small id="m-s1">SCHRITT 2 VON 4</small><strong id="m-s2">ALTER BESTÄTIGT</strong><em id="m-s3">WEITER ZUR ZAHLUNG</em></div>
+          <div class="m-part is-on" id="m-reader">AUSWEIS / KARTE<i></i></div>
+          <div class="m-part" id="m-pay">BEZAHLEN<i></i></div>
+        </div>
+        <div class="m-part m-flap" id="m-flap">AUSGABE</div>
+      </div>
+      <ol class="steps" id="steps">
+        <li><button type="button" id="step-0" data-step="0">Fach wählen</button></li>
+        <li><button type="button" id="step-1" data-step="1" aria-current="step">Alter prüfen</button></li>
+        <li><button type="button" id="step-2" data-step="2">Bezahlen</button></li>
+        <li><button type="button" id="step-3" data-step="3">Entnehmen</button></li>
+      </ol>
+      <p class="demo__text" id="demo-text" aria-live="polite">Vor jeder Ausgabe prüft der Automat das Alter, <span class="offen">per Ausweis oder Bankkarte</span>. Ist die Prüfung bestanden, geht es weiter zur Zahlung.</p>
+      <div class="demo__ctrl">
+        <label class="switch" for="demo-fail"><input type="checkbox" id="demo-fail"> Prüfung nicht bestanden zeigen</label>
+        <button class="btn btn--line" type="button" id="demo-next">Nächster Schritt</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band band--alt" id="partner">
+  <div class="wrap stack stack--l">
+    <div class="stack">
+      <p class="label">Für Standortpartner</p>
+      <h2>Sie stellen den Platz. Wir betreiben den Automaten.</h2>
+      <p class="lead">Das Angebot richtet sich an Betreiber von Tankstellen, Kiosken und Gastronomie sowie an Eigentümer und Verwalter von Immobilien.</p>
+    </div>
+    <div class="cols">
+      <div class="col stack">
+        <h3>Was Sie davon haben</h3>
+        <ul>
+          <li class="offen">Eine Vergütung für die Stellfläche: als Beteiligung am Umsatz des Automaten oder als feste Miete.</li>
+          <li class="offen">Kein eigenes Personal und kein Wareneinkauf für den Automaten.</li>
+          <li class="offen">Eine Abrechnung, die Sie nachprüfen können.</li>
+        </ul>
+      </div>
+      <div class="col stack">
+        <h3>Was es Sie kostet</h3>
+        <ul>
+          <li class="offen">Den Automaten kaufen oder mieten Sie nicht. Er bleibt Eigentum von JK24.</li>
+          <li>Sie stellen eine Stellfläche und einen Stromanschluss.</li>
+          <li>Wer die Stromkosten trägt, steht im Vertrag.</li>
+        </ul>
+      </div>
+      <div class="col stack">
+        <h3>Was wir übernehmen</h3>
+        <ul>
+          <li class="offen">Lieferung, Aufstellung und Anschluss.</li>
+          <li class="offen">Befüllung, Reinigung, Wartung und Störungsbehebung.</li>
+          <li>Die Verantwortung für die Altersprüfung am Gerät und für das Sortiment.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="small">Die genauen Bedingungen stehen für jeden Standort im schriftlichen Standortvertrag: Laufzeit, Kündigung, Vergütung, Haftung und Zugang zum Gerät.</p>
+  </div>
+</section>
+
+<section class="band" id="ablauf">
+  <div class="wrap stack stack--l">
+    <div class="stack">
+      <p class="label">Ablauf</p>
+      <h2>Von der Anfrage bis zum laufenden Betrieb</h2>
+    </div>
+    <ol class="flow">
+      <li><div><h3>Anfrage</h3><p>Sie nennen uns Ort, Art des Betriebs und die mögliche Stellfläche. Ein Foto hilft.</p></div></li>
+      <li><div><h3>Prüfung des Standorts</h3><p>Wir prüfen, ob der Platz geeignet und zulässig ist: Jugendschutz, Zustimmung des Eigentümers, Strom, Zugang für die Befüllung. Auf öffentlichem Grund ist eine Erlaubnis der Kommune nötig.</p></div></li>
+      <li><div><h3>Schriftliche Vereinbarung</h3><p>Vergütung, Laufzeit, Kündigung, Haftung und Zugang werden im Standortvertrag festgehalten. Ohne Vertrag stellen wir nicht auf.</p></div></li>
+      <li><div><h3>Aufstellung</h3><p class="offen">Wir liefern den Automaten, schließen ihn an und nehmen ihn in Betrieb.</p></div></li>
+      <li><div><h3>Betrieb und Abrechnung</h3><p class="offen">Wir befüllen und warten das Gerät. Sie erhalten regelmäßig eine Abrechnung über Ihre Vergütung.</p></div></li>
+    </ol>
+  </div>
+</section>
+
+<section class="band band--alt" id="rechner">
+  <div class="wrap stack stack--l">
+    <div class="stack">
+      <p class="label">Rechner</p>
+      <h2>Rechnen Sie mit Ihren eigenen Annahmen</h2>
+      <p class="lead">Der Rechner kennt Ihren Standort nicht. Er enthält deshalb keine Vorgabewerte und multipliziert nur, was Sie eintragen. Gerechnet wird in Ihrem Browser; es wird nichts übertragen.</p>
+    </div>
+    <div class="calc">
+      <form class="stack stack--l" id="calc" onsubmit="return false">
+        <div class="field">
+          <div class="field__top"><label for="c-sales">Verkäufe pro Tag</label><output id="o-sales" for="c-sales">0</output></div>
+          <input type="range" id="c-sales" min="0" max="60" step="1" value="0">
+          <p class="small">Ihre Schätzung. Sie hängt von Lage und Laufkundschaft ab und ist die Annahme, an der das Ergebnis am stärksten hängt.</p>
+        </div>
+        <div class="field">
+          <div class="field__top"><label for="c-price">Durchschnittlicher Betrag je Verkauf, brutto</label><output id="o-price" for="c-price">0 €</output></div>
+          <input type="range" id="c-price" min="0" max="30" step="0.5" value="0">
+        </div>
+        <div class="field">
+          <div class="field__top"><label for="c-share">Ihre Beteiligung am Nettoumsatz</label><output id="o-share" for="c-share">0 %</output></div>
+          <input type="range" id="c-share" min="0" max="30" step="0.5" value="0">
+          <p class="small">Nettoumsatz heißt hier: Bruttoumsatz ohne 19 % Umsatzsteuer. Welche Basis tatsächlich gilt, regelt der Standortvertrag.</p>
+        </div>
+        <div class="field">
+          <div class="field__top"><label for="c-days">Betriebstage im Monat</label><output id="o-days" for="c-days">30</output></div>
+          <input type="range" id="c-days" min="1" max="31" step="1" value="30">
+        </div>
+        <fieldset class="radio">
+          <legend>Stromkosten trägt</legend>
+          <label for="c-pw-jk"><input type="radio" name="pw" id="c-pw-jk" value="jk" checked> JK24</label>
+          <label for="c-pw-me"><input type="radio" name="pw" id="c-pw-me" value="me"> der Standort</label>
+        </fieldset>
+        <div id="pw-fields" class="stack stack--l" hidden>
+          <div class="field">
+            <div class="field__top"><label for="c-watt">Mittlere Leistungsaufnahme des Automaten</label><output id="o-watt" for="c-watt">0 W</output></div>
+            <input type="range" id="c-watt" min="0" max="500" step="10" value="0">
+            <p class="small">Den Wert nennt das Datenblatt des Geräts.</p>
+          </div>
+          <div class="field">
+            <div class="field__top"><label for="c-kwh">Ihr Strompreis je kWh</label><output id="o-kwh" for="c-kwh">0 ct</output></div>
+            <input type="range" id="c-kwh" min="0" max="60" step="1" value="0">
+          </div>
+        </div>
+      </form>
+
+      <div class="stack">
+        <div class="bon" aria-live="polite">
+          <h3>RECHENBEISPIEL</h3>
+          <p class="c">je Monat · aus Ihren Eingaben</p>
+          <dl>
+            <div><dt>Umsatz brutto</dt><dd id="r-gross">0,00 €</dd></div>
+            <div><dt>Umsatz netto</dt><dd id="r-net">0,00 €</dd></div>
+            <div><dt>Ihre Beteiligung</dt><dd id="r-share">0,00 €</dd></div>
+            <div><dt>Strom</dt><dd id="r-power">0,00 €</dd></div>
+            <div class="sum"><dt>Ergebnis</dt><dd id="r-sum">0,00 €</dd></div>
+          </dl>
+          <p class="note">Bei halb so vielen Verkäufen: <span id="r-half">0,00 €</span><br>Bei doppelt so vielen: <span id="r-double">0,00 €</span></p>
+          <p class="note">Rechenbeispiel auf Basis Ihrer Eingaben. Keine Prognose, keine Zusage. Tatsächliche Umsätze hängen vom Standort ab. Maßgeblich ist allein der Standortvertrag.</p>
+        </div>
+        <p class="small">Formel: Verkäufe × Betrag × Tage = Umsatz brutto. Geteilt durch 1,19 = netto. Mal Beteiligung in Prozent. Strom: Watt × 24 Stunden × Tage × Strompreis.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="jugendschutz">
+  <div class="wrap cols cols--2">
+    <div class="stack">
+      <p class="label">Jugendschutz</p>
+      <h2>Ohne bestandene Prüfung keine Ausgabe</h2>
+      <p>Der Automat gibt ein Fach erst frei, nachdem die Altersprüfung <span class="offen">per Ausweis oder Bankkarte</span> bestanden wurde. Ohne bestandene Prüfung findet keine Ausgabe statt.</p>
+      <p>Wir richten Betrieb und Standortwahl an § 10 Jugendschutzgesetz aus. Diese Website verkauft nichts und zeigt keine Produkte.</p>
+      <p><a href="jugendschutz.html">Jugendschutz und Regeln im Einzelnen</a></p>
+    </div>
+    <div class="stack">
+      <p class="label">Region</p>
+      <svg class="map" viewBox="0 0 520 330" role="img" aria-label="Schematische Karte der Region Trier mit Mosel und Saar. Sie zeigt Orte zur Orientierung, keine Automatenstandorte.">
+        <path class="river" d="M40 250 C80 235 105 215 128 192 C150 172 165 150 190 138 C225 122 262 108 290 92 C330 70 380 78 420 52 C450 34 480 40 505 22"/>
+        <path class="river" d="M112 318 C120 285 112 250 120 222 C123 208 126 200 128 192"/>
+        <text class="rv" x="330" y="52">MOSEL</text>
+        <text class="rv" x="136" y="300">SAAR</text>
+        <circle class="hub" cx="190" cy="138" r="9"/><text x="206" y="160">Trier</text>
+        <circle class="dot" cx="128" cy="192" r="5"/><text x="142" y="212">Konz</text>
+        <circle class="dot" cx="112" cy="268" r="5"/><text x="20" y="286">Saarburg</text>
+        <circle class="dot" cx="290" cy="92" r="5"/><text x="302" y="116">Schweich</text>
+        <circle class="dot" cx="400" cy="24" r="5"/><text x="414" y="22">Wittlich</text>
+        <circle class="dot" cx="90" cy="34" r="5"/><text x="104" y="40">Bitburg</text>
+        <circle class="dot" cx="440" cy="200" r="5"/><text x="340" y="226">Hermeskeil</text>
+      </svg>
+      <p class="small"><span class="offen">Wir arbeiten in Trier und im Umland.</span> Die Karte ist schematisch und zeigt Orte zur Orientierung, keine Automatenstandorte.</p>
+    </div>
+  </div>
+</section>
+
+<section class="band band--alt" id="fragen">
+  <div class="wrap stack stack--l">
+    <div class="stack">
+      <p class="label">Häufige Fragen</p>
+      <h2>Was Standortpartner und Vermieter fragen</h2>
+    </div>
+    <div class="faq">
+      <details><summary>Was braucht der Standort?</summary><p>Eine ebene, zugängliche Stellfläche und einen Stromanschluss. Maße, Gewicht und Anschlusswerte nennen wir Ihnen mit dem Datenblatt des Geräts, bevor Sie etwas zusagen.</p></details>
+      <details><summary>Wer ist für den Jugendschutz verantwortlich?</summary><p>JK24 als Betreiber des Automaten. Die Altersprüfung ist im Gerät eingebaut. Wie die Verantwortung zwischen Betreiber und Standort im Einzelnen verteilt ist, steht im Standortvertrag.</p></details>
+      <details><summary>Wer darf am Automaten kaufen?</summary><p>Nur Erwachsene. Die Abgabe von E-Zigaretten an Minderjährige ist gesetzlich verboten.</p></details>
+      <details><summary>Was passiert bei einer Störung?</summary><p>Am Automaten steht, wie Sie und Kunden uns erreichen. <span class="offen">Wir kümmern uns um die Behebung.</span></p></details>
+      <details><summary>Kann ich die Vereinbarung beenden?</summary><p>Ja. Laufzeit und Kündigungsfrist stehen im Standortvertrag. Lesen Sie ihn in Ruhe, bevor Sie unterschreiben.</p></details>
+      <details><summary>Ich bin Vermieter. Mein Mieter möchte einen Automaten aufstellen.</summary><p>Wir stellen nur mit schriftlicher Zustimmung des Eigentümers auf. Sprechen Sie uns an, wir zeigen Ihnen Gerät, Altersprüfung und Vertrag.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="kontakt">
+  <div class="wrap stack stack--l">
+    <div class="stack">
+      <p class="label">Kontakt</p>
+      <h2>Standort anfragen</h2>
+      <p class="lead">Schreiben Sie uns oder rufen Sie an. Hilfreich sind: Ort, Art des Betriebs, mögliche Stellfläche und ob Sie Eigentümer oder Mieter sind.</p>
+    </div>
+    <div class="contact">
+      <div><span class="small">E-Mail</span><strong><span class="platzhalter">E-Mail-Adresse fehlt</span></strong></div>
+      <div><span class="small">Telefon</span><strong><span class="platzhalter">Telefonnummer fehlt</span></strong></div>
+      <div><span class="small">Anschrift</span><strong><span class="platzhalter">Anschrift fehlt</span></strong></div>
+    </div>
+    <p class="small">Diese Seite hat kein Kontaktformular und setzt keine Cookies. Mehr dazu in der <a href="datenschutz.html">Datenschutzerklärung</a>.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <span class="age"><b>18</b> Abgabe am Automaten nur an Erwachsene</span>
+    <nav aria-label="Rechtliches">
+      <a href="jugendschutz.html">Jugendschutz</a>
+      <a href="impressum.html">Impressum</a>
+      <a href="datenschutz.html">Datenschutz</a>
+    </nav>
+    <span>© JK24, Region Trier</span>
+  </div>
+</footer>
+<script src="assets/js/site.js" defer></script>
+</body>
+</html>
