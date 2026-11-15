@@ -388,6 +388,104 @@ def _listen_schreiben(ziel: Path):
     _schreib(ziel / "Kennzahlen.md", "\n".join(z) + "\n")
 
 
+# ── Das Gehirn sichtbar machen ─────────────────────────────────────────────────
+def _mm(text: str, max_len: int = 38) -> str:
+    """Mermaid-sicherer Knotentext: Klammern & Co. zerlegen sonst die Mindmap."""
+    t = re.sub(r"[()\[\]{}<>\"'`#;:|]", " ", str(text))
+    t = re.sub(r"\s+", " ", t).strip()
+    return (t[:max_len - 1].rstrip() + "…") if len(t) > max_len else (t or "—")
+
+
+def _sparkline(werte: list[float]) -> str:
+    if len(werte) < 2:
+        return ""
+    bloecke = "▁▂▃▄▅▆▇█"
+    lo, hi = min(werte), max(werte)
+    spanne = (hi - lo) or 1
+    return "".join(bloecke[int((w - lo) / spanne * (len(bloecke) - 1))] for w in werte)
+
+
+def _jarvis_satz(fragen: list, fehler: list, laufend: list) -> str:
+    h = datetime.now().hour
+    gruss = ("Guten Morgen" if 5 <= h < 11 else "Guten Tag" if h < 17
+             else "Guten Abend" if h < 23 else "Noch wach")
+    teile = []
+    dringend = [q for q, _ in fragen if q["dringlichkeit"] >= 3]
+    if dringend:
+        teile.append(f"{len(dringend)} Entscheidung{'en' if len(dringend) > 1 else ''} "
+                     f"blockier{'en' if len(dringend) > 1 else 't'} mich")
+    elif fragen:
+        teile.append(f"{len(fragen)} Frage{'n' if len(fragen) > 1 else ''} an dich, nichts Brennendes")
+    if any(f["status"] == "braucht_kai" for f in fehler):
+        teile.append("ein Fehler braucht deine Hände")
+    elif fehler:
+        teile.append(f"{len(fehler)} Fehler offen, ich bin dran")
+    if laufend:
+        teile.append(f"Fokus liegt auf „{laufend[0]['titel']}“")
+    if not teile:
+        return f"{gruss}, Kai. Alle Systeme nominal. Ich halte die Stellung."
+    return f"{gruss}, Kai. " + "; ".join(teile) + "."
+
+
+EVENT_SYMBOL = {"start": "▶️", "ende": "⏹️", "heilung": "🩹", "obsidian": "📝"}
+
+
+def _gehirn_block(fragen: list) -> list[str]:
+    s = brain.status()
+    fehler = brain.offene_fehler()
+    laufend = brain.top_ideen(3, status="laeuft")
+    beste = brain.top_ideen(5, status="neu")
+    lern = brain.erkenntnisse(5)
+    ents = brain.entscheidungen(4)
+
+    z = ["## 🧠 Gehirn", "", f"> [!abstract] J.A.R.V.I.S.",
+         f"> {_jarvis_satz(fragen, fehler, laufend)}", ">"]
+    with brain._db() as con:
+        n_ev = con.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+        n_met = con.execute("SELECT COUNT(*) FROM metrics").fetchone()[0]
+    gesamt = (s["ideen_neu"] + s["ideen_laufend"] + s["ideen_erledigt"] + s["erkenntnisse"]
+              + s["entscheidungen"])
+    z += [f"> Gedächtnis: **{gesamt}** Wissenseinheiten · **{n_met}** Messpunkte · "
+          f"**{n_ev}** protokollierte Gedanken", ""]
+
+    # Verlauf der wichtigsten Zahl als Mini-Kurve
+    v = brain.verlauf("views_gesamt", 30)
+    if len(v) >= 2:
+        t = brain.trend("views_gesamt", 14)
+        z += [f"**Views 30 T** `{_sparkline([r['wert'] for r in v])}` "
+              f"{v[-1]['wert']:g}" + (f" ({t:+} % / 14 T)" if t is not None else ""), ""]
+
+    # Mindmap: was das Gehirn gerade weiß und will
+    mm = ["```mermaid", "mindmap", "  root((🧠 JK24))"]
+    aeste = [("🚀 Läuft", [i["titel"] for i in laufend]),
+             ("💡 Ideen", [f"{i['titel']} · {i['score']:g}" for i in beste]),
+             ("📚 Erkenntnisse", [f"{x['gewicht']}x {x['text']}" for x in lern]),
+             ("⚖️ Entscheidungen", [f"{x['thema']} → {x['entscheidung']}" for x in ents]),
+             ("❓ Fragen", [q["frage"] for q, _ in fragen[:4]]),
+             ("🩹 Fehler", [f"{x['komponente']} {x['anzahl']}x" for x in fehler[:4]])]
+    for ast, blaetter in aeste:
+        if not blaetter:
+            continue
+        mm.append(f"    {_mm(ast)}")
+        mm += [f"      {_mm(b)}" for b in blaetter]
+    mm.append("```")
+    z += mm + [""]
+
+    # Gedankenprotokoll: was der Autopilot zuletzt getan hat
+    ev = brain.letzte_events(10)
+    if ev:
+        z += ["> [!note]- Gedankenprotokoll (letzte 10)"]
+        z += [f"> - `{e['zeit'][5:16].replace('T', ' ')}` {EVENT_SYMBOL.get(e['typ'], '•')} "
+              f"{_einzeilig(e['text'])}" for e in ev]
+        z.append("")
+    return z
+
+
+def _einzeilig(text: str, max_len: int = 90) -> str:
+    t = " ".join(str(text).split())
+    return t if len(t) <= max_len else t[:max_len - 1] + "…"
+
+
 def _dashboard_schreiben(ziel: Path, ideen: dict[int, str], fragen: list, briefing: str | None):
     s = brain.status()
     heute = f"{datetime.now():%Y-%m-%d}"
@@ -401,6 +499,7 @@ def _dashboard_schreiben(ziel: Path, ideen: dict[int, str], fragen: list, briefi
           f"**{s['ideen_erledigt']}** · Fehler offen **{s['fehler_offen']}** · "
           f"Erkenntnisse **{s['erkenntnisse']}**", ""]
 
+    z += _gehirn_block(fragen)
     z += ["## ⚠️ Wartet auf dich", ""]
     z += [f"- [[Fragen/{name}|{q['frage']}]]" + (" 🔥" if q["dringlichkeit"] >= 3 else "")
           for q, name in fragen] or ["- nichts — läuft 🎉"]

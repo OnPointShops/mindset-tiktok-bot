@@ -58,6 +58,9 @@ liegt nach jedem Autopilot-Lauf ein Ordner `JK24 Autopilot` im Vault: Dashboard,
 eine Notiz je Idee und je Frage, Tagesberichte. Zurück geht es auch:
 Frage beantworten = unter „Deine Antwort" schreiben · Idee steuern = `status:` ändern ·
 Einfall = Zeile in `01 Inbox.md` (`idee: …`, `erkenntnis: …`, `entscheidung: A -> B`).
+Ganz oben im Dashboard steht der Abschnitt **🧠 Gehirn**: eine Lagemeldung in einem Satz,
+eine Mindmap von allem, was das Gedächtnis gerade weiß (läuft, Ideen, Erkenntnisse,
+Entscheidungen, Fragen, Fehler), die Views-Kurve und ein Protokoll der letzten Schritte.
 Von Hand: `python3 obsidian_sync.py`
 
 ---
