@@ -11,6 +11,7 @@ ins Git-Repo kommt. Darin steht alles, was wir gemeinsam herausfinden:
   learnings  Was funktioniert hat und was nicht
   events     Protokoll jedes Autopilot-Laufs
   team_log   Was jeder KI-Mitarbeiter wann getan hat (siehe team.py)
+  personal   Status jedes Agenten: aktiv, auf Bewährung, gekündigt (siehe hauptagent.py)
 
 Warum SQLite und keine Cloud-Lösung: Das Gedächtnis enthält Geschäftszahlen,
 Strategien und Zugangs-Metadaten. Je weniger Dienste das sehen, desto besser.
@@ -104,6 +105,12 @@ CREATE TABLE IF NOT EXISTS team_log (
     id INTEGER PRIMARY KEY,
     zeit TEXT, mitarbeiter TEXT, ergebnis TEXT,   -- ergebnis: geprueft | ok | korrigieren | sperren | ausfall | ...
     text TEXT DEFAULT '', wert REAL, dauer_s REAL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS personal (
+    agent TEXT PRIMARY KEY,
+    status TEXT DEFAULT 'aktiv',       -- aktiv | bewaehrung | gekuendigt
+    version INTEGER DEFAULT 1,         -- wie oft die Stelle neu besetzt wurde
+    grund TEXT DEFAULT '', seit TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_team_zeit ON team_log(zeit);
 CREATE INDEX IF NOT EXISTS idx_metrics_datum ON metrics(datum);
@@ -327,6 +334,29 @@ def team_letzte(n: int = 10) -> list[dict]:
     with _db() as con:
         return [dict(r) for r in con.execute(
             "SELECT * FROM team_log ORDER BY id DESC LIMIT ?", (n,)).fetchall()]
+
+
+# ── Personalakte: Status jedes Agenten (siehe hauptagent.py) ───────────────────
+def personal(agent: str) -> dict:
+    with _db() as con:
+        r = con.execute("SELECT * FROM personal WHERE agent=?", (agent,)).fetchone()
+    return dict(r) if r else {"agent": agent, "status": "aktiv", "version": 1, "grund": "", "seit": ""}
+
+
+def personal_setze(agent: str, status: str, grund: str = "", neue_version: bool = False):
+    version = personal(agent)["version"] + (1 if neue_version else 0)
+    with _db() as con:
+        con.execute("INSERT INTO personal (agent, status, version, grund, seit) VALUES (?,?,?,?,?) "
+                    "ON CONFLICT(agent) DO UPDATE SET status=excluded.status, "
+                    "version=excluded.version, grund=excluded.grund, seit=excluded.seit",
+                    (agent, status, version, grund, _now()))
+
+
+def erstes_event(typ: str) -> str | None:
+    """Zeitpunkt des ältesten Ereignisses dieses Typs — seit wann läuft das System?"""
+    with _db() as con:
+        r = con.execute("SELECT MIN(zeit) FROM events WHERE typ=?", (typ,)).fetchone()
+    return r[0]
 
 
 # ── Für die KI: alles Wichtige in einem Block ──────────────────────────────────

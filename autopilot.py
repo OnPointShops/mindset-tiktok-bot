@@ -8,6 +8,10 @@ reparieren (Paket nachinstallieren, Platte aufräumen, Lauf wiederholen),
 messen, recherchieren und VORSCHLAGEN. Code-Änderungen landen als Vorschlag
 im Gedächtnis und werden in einer Sitzung mit Claude umgesetzt.
 
+Die KI-Agenten sind davon nicht berührt: Ein Agent ist eine Textdatei mit
+Rolle und Auftrag, kein Programmcode. Der Hauptagent (hauptagent.py) darf
+Agenten deshalb selbst einstellen, neu besetzen und kündigen.
+
 Der Grund ist nicht Vorsicht um ihrer selbst willen: Ein System, das sich
 nachts unbeaufsichtigt umschreibt, ist irgendwann kaputt, und niemand weiß
 wann oder warum. Ein System, das Vorschläge sammelt, wird jede Woche besser
@@ -281,6 +285,18 @@ def team_analyse():
         brain.log_error("team_analyst", str(e))
 
 
+def personalpruefung():
+    """Der Hauptagent (hauptagent.py) zieht Kasse und prüft das Personal: Wer
+    nachweislich schadet, wird neu besetzt; wer nie gebraucht wird, geht."""
+    if not _einmal_taeglich("personal"):
+        return
+    try:
+        import hauptagent
+        hauptagent.pruefung()
+    except Exception as e:  # noqa: BLE001
+        brain.log_error("hauptagent", str(e))
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  6. PLANEN — was ist der nächste sinnvolle Schritt?
 # ══════════════════════════════════════════════════════════════════════════════
@@ -367,6 +383,13 @@ def melden(gepostet: int, geheilt: list[str], zahlen: dict, plan: dict, probleme
         team_zeile = ""
     if team_zeile:
         z.append(f"**Redaktion heute:** {team_zeile}")
+    try:
+        import hauptagent
+        personal_zeile = hauptagent.kurzbericht()
+    except Exception:  # noqa: BLE001
+        personal_zeile = ""
+    if personal_zeile:
+        z.append(f"**Personal:** {personal_zeile}")
     if geheilt:
         z.append(f"**Selbst repariert:** {'; '.join(_einzeilig(g, 60) for g in geheilt[:3])}")
     z.append("")
@@ -417,6 +440,7 @@ def run(kurz: bool = False) -> str:
         strategie_auffrischen()
         entdecken()
         team_analyse()
+        personalpruefung()
         plan = planen({"gepostet_heute": gepostet, "probleme": probleme, **zahlen})
 
     bericht = melden(gepostet, geheilt, zahlen, plan, probleme)

@@ -32,7 +32,8 @@ Zwei Regeln, die für jeden Mitarbeiter gelten:
    Gedächtnis — dieselbe Grenze wie beim Autopiloten.
 
 Aufruf:
-    python3 team.py            # wer arbeitet hier, und was haben sie zuletzt getan
+    python3 team.py            # die Redaktion und was sie zuletzt getan hat
+    python3 hauptagent.py      # das GANZE Personal, mit Status und Kasse
     python3 team.py --probe    # ein Skript aus dem Vorrat einmal durch die Redaktion
 """
 from __future__ import annotations
@@ -196,12 +197,45 @@ def _ki_verfuegbar() -> bool:
         (content_generator.GEMINI_API_KEY, content_generator.GROQ_API_KEY, config.ANTHROPIC_API_KEY))
 
 
+# Hier legt der Hauptagent Neufassungen ab, wenn er eine Stelle neu besetzt.
+# Lokal und nicht im Repo: Was auf dem Mac gelernt wurde, darf ein git pull
+# nicht überschreiben. Platzhalter stehen dort als [[name]], damit die
+# geschweiften Klammern des JSON-Formats nicht maskiert werden müssen.
+LOKAL_DIR = brain.BRAIN_DIR / "agenten"
+
+
+def auftrag_als_text(agent_id: str) -> str:
+    """Der eingebaute Auftrag in der Schreibweise der Agenten-Dateien."""
+    m = next((x for x in TEAM if x.id == agent_id), None)
+    if not m:
+        return ""
+    t = m.auftrag.replace("{{", "\x00").replace("}}", "\x01")
+    t = re.sub(r"\{(\w+)\}", r"[[\1]]", t)
+    return t.replace("\x00", "{").replace("\x01", "}")
+
+
+def _auftrag(m: Mitarbeiter, platzhalter: dict) -> str:
+    """Der gültige Auftrag: die Neufassung des Hauptagenten, sonst der eingebaute.
+    Compliance wird nie überschrieben — siehe hauptagent.py."""
+    lokal = LOKAL_DIR / f"{m.id}.md"
+    if m.id != COMPLIANCE.id and lokal.exists():
+        try:
+            text = lokal.read_text(encoding="utf-8").split("\n---", 1)[1].split("\n", 1)[1].strip()
+            for k, v in platzhalter.items():
+                text = text.replace(f"[[{k}]]", str(v))
+            if text:
+                return text
+        except Exception as e:  # noqa: BLE001
+            log.warning("Neufassung %s unlesbar (%s) -> eingebauter Auftrag", lokal.name, e)
+    return m.auftrag.format(**platzhalter)
+
+
 def _frage(m: Mitarbeiter, aufgabe: str, max_tokens: int = 1200, **platzhalter) -> dict | None:
     """Ein Auftrag an einen Mitarbeiter. Gibt None zurück, wenn er ausfällt —
     der Aufrufer entscheidet, was das bedeutet."""
     start = time.monotonic()
     try:
-        roh = content_generator.generate_llm(m.auftrag.format(**platzhalter), aufgabe, max_tokens)
+        roh = content_generator.generate_llm(_auftrag(m, platzhalter), aufgabe, max_tokens)
         antwort = content_generator._extract_json(roh)
         if not isinstance(antwort, dict):
             raise ValueError("Antwort ist kein JSON-Objekt")
@@ -295,9 +329,10 @@ def _fassung_brauchbar(alt: dict, neu: dict) -> str | None:
     return None
 
 
-def lektorat(script: dict, nische: str = "") -> dict:
+def lektorat(script: dict, nische: str = "", probe: bool = False) -> dict:
     """Benotet das Skript und übernimmt bei schwacher Note die Fassung des Lektors.
-    Gibt den Befund zurück; das Skript wird direkt geändert."""
+    Gibt den Befund zurück; das Skript wird direkt geändert. probe=True ist die
+    Arbeitsprobe eines neuen Lektors und zählt nicht in seine Bilanz."""
     aufgabe = (f"Nische des Kanals: {nische or 'Mindset / Motivation'}\n"
                f"Länge: {'Langform, 35-45 Sekunden' if script.get('length') == 'long' else 'Kurzform, 16-26 Sekunden'}\n\n"
                "Skript des Autors:\n" + json.dumps(
@@ -328,10 +363,11 @@ def lektorat(script: dict, nische: str = "") -> dict:
                     script[k] = neu[k].strip()
             befund["ueberarbeitet"] = True
 
-    brain.team_log(LEKTOR.id, "geprueft",
-                   f"{script.get('topic', '?')}: Note {note}"
-                   + (" → überarbeitet" if befund["ueberarbeitet"] else ""),
-                   wert=note, dauer_s=time.monotonic() - start)
+    if not probe:
+        brain.team_log(LEKTOR.id, "geprueft",
+                       f"{script.get('topic', '?')}: Note {note}"
+                       + (" → überarbeitet" if befund["ueberarbeitet"] else ""),
+                       wert=note, dauer_s=time.monotonic() - start)
     return befund
 
 
@@ -434,9 +470,11 @@ def _gruppen(zeilen: list[dict], schluessel) -> dict:
     return aus
 
 
-def kennzahlen() -> dict:
+def kennzahlen(seit: str | None = None) -> dict:
     """Verbindet gemessene Abrufe (performance.csv) mit dem, was wir über jedes
-    Skript wissen (Warteschlange): Format, Länge, Account, Lektor-Note."""
+    Skript wissen (Warteschlange): Format, Länge, Account, Lektor-Note.
+    seit (ISO-Zeit) zählt nur Skripte, die danach entstanden sind — damit ein
+    neu besetzter Agent nicht an der Arbeit seines Vorgängers gemessen wird."""
     perf = config.CONTENT_DIR / "performance.csv"
     if not perf.exists():
         return {"datenpunkte": 0}
@@ -451,6 +489,8 @@ def kennzahlen() -> dict:
     zeilen = []
     for r in gemessen:
         q = queue.get(r.get("topic"), {})
+        if seit and (q.get("generated_at") or q.get("posted_at") or "") < seit:
+            continue
         lektor = (q.get("team") or {}).get("lektor") or {}
         zeilen.append({
             "views": _zahl(r.get("views")),
