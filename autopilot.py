@@ -1,6 +1,6 @@
 """
 Der Autopilot. Läuft mehrmals täglich auf dem MacBook und macht einen
-kompletten Durchgang: prüfen → heilen → posten → messen → entdecken → auswerten → planen → melden.
+kompletten Durchgang: aktualisieren → prüfen → heilen → posten → messen → entdecken → auswerten → planen → melden.
 
 SICHERHEITSGRENZE — bewusst und nicht verhandelbar:
 Der Autopilot ändert NIEMALS selbst seinen eigenen Programmcode. Er darf
@@ -79,6 +79,41 @@ def notify(titel: str, text: str):
                        timeout=10, capture_output=True)
     except Exception:  # noqa: BLE001
         pass
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  0. AKTUALISIEREN — neuen Stand aus dem Repo holen
+# ══════════════════════════════════════════════════════════════════════════════
+def aktualisieren() -> str:
+    """Holt den neuesten Stand von main (git pull, nur vorspulen).
+
+    Darüber kommen neue Fachagenten, Verbesserungen und Video-Aufträge aus der
+    Handy-App auf den Mac. Bewusst immer von main: Ein Mac, der noch auf einem
+    alten Arbeitszweig steht, wird damit nach vorn gespult, ohne den Zweig zu
+    wechseln. Geht das nicht (eigene Änderungen auf dem Mac), läuft der Autopilot
+    mit dem alten Stand weiter und meldet es — Stillstand wäre schlimmer.
+
+    Das ist keine Selbst-Umschreibung: Der Mac übernimmt nur, was in main geprüft
+    zusammengeführt wurde."""
+    if not (config.BASE_DIR / ".git").exists():
+        return ""
+    try:
+        r = subprocess.run(["git", "-C", str(config.BASE_DIR), "pull", "--ff-only", "--quiet", "origin", "main"],
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            brain.log_error("aktualisieren", _einzeilig(r.stderr or r.stdout, 300))
+            return ""
+        neu = subprocess.run(["git", "-C", str(config.BASE_DIR), "log", "-1", "--format=%h %s"],
+                             capture_output=True, text=True, timeout=10).stdout.strip()
+        s = _state()
+        if s.get("version") != neu:
+            s["version"] = neu
+            _save_state(s)
+            brain.event("update", f"Neuer Stand: {neu}")
+            return neu
+    except Exception as e:  # noqa: BLE001
+        brain.log_error("aktualisieren", str(e))
+    return ""
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -436,6 +471,9 @@ def run(kurz: bool = False) -> str:
     log.info("═══ Autopilot startet (%s) ═══", "kurz" if kurz else "voll")
     brain.event("start", "Autopilot-Lauf", {"modus": "kurz" if kurz else "voll"})
 
+    update = aktualisieren()
+    if update:
+        log.info("Aktualisiert auf: %s", update)
     ok, probleme = pruefen()
     geheilt = heilen()
     if geheilt:                       # nach einer Reparatur nochmal prüfen

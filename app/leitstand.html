@@ -113,6 +113,7 @@ nav button[aria-current=page]{color:var(--accent)}
     <div><h1 id="gruss">Hallo, Kai.</h1>
       <div class="lage" style="margin-top:8px"><span class="dot" id="st-dot"></span><span id="st-text">Noch kein Lagebericht.</span></div></div>
     <div class="held"><small>Dein nächster Schritt</small><p id="st-schritt">Frag unten einfach, was ansteht.</p></div>
+    <div class="karte" id="briefing" hidden><div class="wer"><span class="gesicht">J</span><span class="chip fach">Dein Briefing</span><span id="briefing-zeit"></span></div><div class="antwort" id="briefing-text"></div></div>
     <div class="drei">
       <button data-v="zutun"><span class="zahl" id="k-offen">—</span><small>Dinge zu tun</small></button>
       <button data-v="auftraege"><span class="zahl" id="k-eingang">—</span><small>macht das Team gerade</small></button>
@@ -479,7 +480,8 @@ $("profil-los").addEventListener("click", async () => { if (!db) return; profil 
   abo("aufgaben", zAufgaben); abo("eingang", zEingang); abo("kasse", zKasse); abo("chat", zChat); abo("wegweiser", zWegweiser);
   db.doc("stand/aktuell").onSnapshot(s => { if (!s.exists) return; lage = s.data();
     $("st-dot").className = "dot " + (lage.ampel || ""); $("st-text").textContent = lage.text || "";
-    if (lage.naechster_schritt) $("st-schritt").textContent = lage.naechster_schritt; }, () => {});
+    if (lage.naechster_schritt) $("st-schritt").textContent = lage.naechster_schritt;
+    $("briefing").hidden = !lage.briefing; $("briefing-text").innerHTML = md(lage.briefing || ""); $("briefing-zeit").textContent = tag(lage.erstellt); }, () => {});
   db.doc("einstellungen/profil").get().then(s => { if (s.exists) { profil = s.data().text || ""; $("profil").value = profil; } }).catch(() => {});
 })();
 </script>
