@@ -17,21 +17,21 @@
       d.textContent = (i < 10 ? "0" : "") + i;
       slots.appendChild(d);
     }
-    var step = 1, fail = false;
+    var step = 0, fail = false;
     var parts = { reader: $("m-reader"), pay: $("m-pay"), flap: $("m-flap") };
     // Je Schritt: Anzeige (2 Zeilen), leuchtendes Bauteil, Erklärtext.
     var STEPS = [
       { a: "FACH 07 GEWÄHLT", b: "BITTE ALTER PRÜFEN", on: null,
         t: "Am Anfang steht die Auswahl eines Fachs. Die Fächer sind nummeriert. Geöffnet wird noch nichts." },
       { a: "ALTER BESTÄTIGT", b: "WEITER ZUR ZAHLUNG", on: "reader",
-        t: "Vor jeder Ausgabe prüft der Automat das Alter, <span class=\"offen\">per Ausweis oder Bankkarte</span>. Ist die Prüfung bestanden, geht es weiter zur Zahlung." },
+        t: "Vor jeder Ausgabe prüft der Automat das Alter, <span class=\"offen\">per Ausweis oder Bankkarte</span>. <span class=\"offen\">Ist die Prüfung bestanden, geht es weiter zur Zahlung.</span>" },
       { a: "BITTE BEZAHLEN", b: "KARTE AUFLEGEN", on: "pay",
-        t: "Erst nach bestandener Prüfung lässt sich bezahlen. <span class=\"offen\">Gezahlt wird bargeldlos.</span>" },
+        t: "<span class=\"offen\">Erst nach bestandener Prüfung lässt sich bezahlen. Gezahlt wird bargeldlos.</span>" },
       { a: "FACH 07 OFFEN", b: "BITTE ENTNEHMEN", on: "flap",
-        t: "Nach der Zahlung gibt der Automat genau das gewählte Fach frei. Alle anderen Fächer bleiben verschlossen." }
+        t: "<span class=\"offen\">Nach der Zahlung gibt der Automat genau das gewählte Fach frei. Alle anderen Fächer bleiben verschlossen.</span>" }
     ];
     var FAIL = { a: "KEINE FREIGABE", b: "VORGANG BEENDET", on: "reader",
-      t: "Ist die Prüfung nicht bestanden, endet der Vorgang hier. Es wird nicht bezahlt und kein Fach öffnet sich." };
+      t: "<span class=\"offen\">Ist die Prüfung nicht bestanden, endet der Vorgang hier. Es wird nicht bezahlt und kein Fach öffnet sich.</span>" };
 
     var render = function () {
       var failed = fail && step >= 1;
@@ -61,12 +61,6 @@
     });
     $("demo-fail").addEventListener("change", function (e) { fail = e.target.checked; if (fail) step = 1; render(); });
 
-    // Uhrzeit des Besuchers auf dem Schild: Der Automat läuft rund um die Uhr.
-    var clock = function () {
-      var t = new Date();
-      $("m-clock").textContent = ("0" + t.getHours()).slice(-2) + ":" + ("0" + t.getMinutes()).slice(-2);
-    };
-    clock(); setInterval(clock, 20000);
     render();
   }
 

@@ -126,7 +126,6 @@ p { margin: 0; }
 }
 .machine::after { content: ""; position: absolute; left: 12%; right: 12%; bottom: -10px; height: 10px; border-radius: 0 0 6px 6px; background: var(--m-edge); }
 .m-sign { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; background: var(--amber); color: var(--amber-ink); border-radius: 10px; padding: .45rem .8rem; font: 900 1rem/1 var(--display); font-stretch: 125%; }
-.m-sign span { font: 800 1rem/1 var(--dot); letter-spacing: .06em; }
 .m-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: var(--m-glass); padding: 8px; border-radius: 12px; border: 1px solid var(--m-edge); }
 .m-slot { aspect-ratio: 1 / 1.2; border-radius: 5px; background: linear-gradient(180deg, #1a2552, #0d1433); border-bottom: 2px solid rgba(255, 178, 62, .35); display: grid; place-items: end center; padding-bottom: 3px; font: 800 .8rem/1 var(--dot); color: var(--m-dim); transition: box-shadow .25s, background .25s; }
 .m-slot.is-pick { background: linear-gradient(180deg, #3a2a08, #1c1404); color: var(--amber); box-shadow: 0 0 0 2px var(--amber), 0 0 18px rgba(255, 178, 62, .55); }

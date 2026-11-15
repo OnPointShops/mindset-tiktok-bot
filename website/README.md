@@ -88,10 +88,17 @@ Geschäfts. Im Entwurf sind sie gepunktet unterstrichen (`class="offen"`).
 - JK24 arbeitet in Trier und im Umland (die Karte nennt Konz, Saarburg, Schweich,
   Wittlich, Bitburg, Hermeskeil nur zur Orientierung).
 - Bei Störungen kümmert sich JK24 um die Behebung; am Automaten steht, wie man JK24 erreicht.
+- Es gibt schon einen Automaten im Betrieb (sonst „betreiben" in „werden betreiben" ändern).
+- Am Gerät kommt die Altersprüfung **vor** der Zahlung, bei **jedem** Kauf; ohne bestandene
+  Prüfung wird nicht bezahlt; es öffnet sich nur das gewählte Fach (laut Datenblatt prüfen).
+- Der Rechner zieht 19 % Umsatzsteuer ab. Das stimmt nur bei Regelbesteuerung, nicht als
+  Kleinunternehmer.
+- Aufstellung nur mit schriftlichem Vertrag, nur mit schriftlicher Zustimmung des
+  Eigentümers, auf öffentlichem Grund nur mit Sondernutzungserlaubnis; Nachfrage bei der
+  Behörde im Zweifel.
 
-Ohne Markierung, aber ebenfalls Zusagen, die im Alltag stimmen müssen: Aufstellung nur
-mit schriftlichem Vertrag, nur mit Zustimmung des Eigentümers, auf öffentlichem Grund
-nur mit Erlaubnis der Kommune; das Datenblatt gibt es vor der Zusage des Partners.
+Ohne Markierung, aber ebenfalls eine Zusage, die im Alltag stimmen muss: Das Datenblatt
+des Geräts gibt es, bevor der Partner etwas zusagt.
 
 ## Bestandsaufnahme der alten Seite
 
@@ -133,7 +140,23 @@ Unterlagen für den Termin: fertige Seitentexte und Bildschirmfotos, Datenblatt 
 Prüfnachweis der Altersprüfung, Fotos eines Automaten am Standort, Entwurf des
 Standortvertrags, Gewerbeanmeldung.
 
-<!-- GEGENPRUEFUNG -->
+### Gegenprüfung der fertigen Texte (wörtlich von `recht`)
+
+Gesamturteil nach Einarbeitung seiner Pflichtänderungen: **vertretbar**. Die
+Gesetzestexte konnte er auch hier nicht im Original lesen; vor Veröffentlichung
+§ 10 JuSchG und § 5 DDG einmal gegen den Originaltext lesen.
+
+Ergänzungen zu „Offen / unklar":
+
+- Existiert bereits ein betriebener Automat? Davon hängt die Gegenwartsform 'betreibt' ab.
+- Regelbesteuerung oder Kleinunternehmer (§ 19 UStG)? Davon hängt die 19-%-Angabe im Rechner ab; an `steuern`.
+- Reihenfolge Prüfung/Zahlung und Prüfung bei jedem Kauf laut Hersteller-Datenblatt.
+- Datenschutzhinweis am Automaten selbst (Art. 13 DSGVO), falls bei Ausweis- oder Kartenprüfung Daten verarbeitet werden; nicht Teil der Website.
+- Aufstellerangaben am Gerät nach § 14 Abs. 3 GewO (Name, Anschrift); nicht am Original geprüft.
+
+Ergänzung zu „Fall für einen Anwalt":
+
+- Standortvertrag: Haftungs- und Freistellungsklausel für Jugendschutzverstöße und Bußgelder gegen den Standortinhaber. Die Website verweist an neun Stellen auf diesen Vertrag; er muss halten, was sie ankündigt.
 
 ### Woran sich die Seite deshalb hält
 
@@ -144,6 +167,7 @@ Standortvertrags, Gewerbeanmeldung.
 - Der Rechner hat keine Vorgabewerte und nennt kein Ergebnis als Versprechen.
 - Keine Aussagen wie „gesetzeskonform", „garantiert", „100 % sicher", „zugelassen".
 - Keine Aussagen zu Steuern, Aromen, Einwegprodukten oder Rücknahme.
+- Kein „24/7" und keine Uhr als Botschaft, dass man jederzeit kaufen kann.
 
 **Diese Regeln gelten auch für jede spätere Änderung an den Texten.**
 
