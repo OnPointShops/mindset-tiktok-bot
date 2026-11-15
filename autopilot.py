@@ -285,6 +285,17 @@ def team_analyse():
         brain.log_error("team_analyst", str(e))
 
 
+def eingang_abarbeiten() -> list[str]:
+    """Video-Aufträge aus der Handy-App bauen (eingang.py). Läuft auch im kurzen
+    Durchgang: Kai soll nicht bis zum Abend auf sein bestelltes Video warten."""
+    try:
+        import eingang
+        return eingang.abarbeiten()
+    except Exception as e:  # noqa: BLE001
+        brain.log_error("eingang", str(e))
+        return []
+
+
 def personalpruefung():
     """Der Hauptagent (hauptagent.py) zieht Kasse und prüft das Personal: Wer
     nachweislich schadet, wird neu besetzt; wer nie gebraucht wird, geht."""
@@ -431,6 +442,9 @@ def run(kurz: bool = False) -> str:
         ok, probleme = pruefen()
 
     gepostet = posten() if ok else 0
+    videos = eingang_abarbeiten() if ok else []
+    if videos:
+        notify("🎬 JK24", f"{len(videos)} bestellte(s) Video(s) fertig in videos/")
     if not ok:
         probleme.append("Posten übersprungen — Selbsttest hat kritische Fehler gemeldet.")
 

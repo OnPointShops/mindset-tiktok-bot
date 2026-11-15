@@ -41,8 +41,11 @@ mit `von: "Assistent"` oder `von_assistent`). Schreib für Kai in der App so, wi
 der Assistent es tut: kurze Sätze, Alltagswörter, erst das Ergebnis.
 
 Dateien eines Auftrags holst du mit dem Werkzeug `Artifact` (`action: "read"`,
-`path`: die `id` der Datei). Für ein Video legst du Bilder und Text unter
-`content/eingang/` ab und committest sie; der Mac holt sie beim nächsten Update.
+`path`: die `id` der Datei). Für ein Video legst du `content/eingang/<id>.json` an
+(`{"id", "art": "video", "thema" oder "text", "lang", "bilder", "erstellt"}`, Aufbau
+in `eingang.py`), Bilder daneben, und committest nach `main`. Der Mac baut das Video
+beim nächsten Autopilot-Lauf. Im App-Eingang setzt du dann `status: "in_arbeit"` und
+schreibst ins `ergebnis`, dass es auf dem Mac gebaut wird und wo es danach liegt.
 
 Jeder Eintrag braucht `erstellt` als ISO-Zeit, sonst sortiert die App ihn falsch.
 Die Seite baust du mit `python3 app/build.py` und veröffentlichst `app/leitstand.html`
