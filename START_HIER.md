@@ -53,6 +53,16 @@ Dann siehst du:
 Kein Terminal, keine Befehle. Wenn du mehr wissen willst:
 Datei `brain/GEDAECHTNIS.md` öffnen — da steht alles drin, was wir je herausgefunden haben.
 
+Neu: Jedes Skript geht jetzt durch eine kleine Redaktion — ein Lektor benotet
+und verbessert es, ein Compliance-Prüfer sperrt, was rechtlich Ärger machen
+könnte. Im Bericht steht dazu eine Zeile ("Redaktion heute"). Du musst nichts tun.
+
+Neu: Es gibt einen Hauptagenten mit acht Fachagenten (Recht, Steuern, Buchhaltung,
+Marketing, Grafik, Automaten, Assistenz, Controller). In jedem neuen Chat mit
+Claude in diesem Projekt sind sie automatisch da. Eine Sache brauchen sie von dir:
+**Trag ein, wenn Geld reinkommt** — `python3 hauptagent.py --umsatz 120 Affiliate`.
+Nur dann kann der Hauptagent bewerten, was sich lohnt.
+
 ---
 
 ## Das Gedächtnis — das, was du dir gewünscht hast

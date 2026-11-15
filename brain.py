@@ -10,6 +10,8 @@ ins Git-Repo kommt. Darin steht alles, was wir gemeinsam herausfinden:
   metrics    Zahlen über die Zeit (Views, Follower, Umsatz)
   learnings  Was funktioniert hat und was nicht
   events     Protokoll jedes Autopilot-Laufs
+  team_log   Was jeder KI-Mitarbeiter wann getan hat (siehe team.py)
+  personal   Status jedes Agenten: aktiv, auf Bewährung, gekündigt (siehe hauptagent.py)
 
 Warum SQLite und keine Cloud-Lösung: Das Gedächtnis enthält Geschäftszahlen,
 Strategien und Zugangs-Metadaten. Je weniger Dienste das sehen, desto besser.
@@ -99,6 +101,18 @@ CREATE TABLE IF NOT EXISTS fragen (
     status TEXT DEFAULT 'offen',       -- offen | beantwortet
     erstellt TEXT, beantwortet TEXT
 );
+CREATE TABLE IF NOT EXISTS team_log (
+    id INTEGER PRIMARY KEY,
+    zeit TEXT, mitarbeiter TEXT, ergebnis TEXT,   -- ergebnis: geprueft | ok | korrigieren | sperren | ausfall | ...
+    text TEXT DEFAULT '', wert REAL, dauer_s REAL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS personal (
+    agent TEXT PRIMARY KEY,
+    status TEXT DEFAULT 'aktiv',       -- aktiv | bewaehrung | gekuendigt
+    version INTEGER DEFAULT 1,         -- wie oft die Stelle neu besetzt wurde
+    grund TEXT DEFAULT '', seit TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_team_zeit ON team_log(zeit);
 CREATE INDEX IF NOT EXISTS idx_metrics_datum ON metrics(datum);
 CREATE INDEX IF NOT EXISTS idx_events_zeit ON events(zeit);
 """
@@ -292,6 +306,57 @@ def letzte_events(n: int = 30) -> list[dict]:
     with _db() as con:
         return [dict(r) for r in con.execute(
             "SELECT * FROM events ORDER BY id DESC LIMIT ?", (n,)).fetchall()]
+
+
+# ── Team: was jeder KI-Mitarbeiter getan hat ───────────────────────────────────
+def team_log(mitarbeiter: str, ergebnis: str, text: str = "", wert: float | None = None,
+             dauer_s: float = 0):
+    with _db() as con:
+        con.execute("INSERT INTO team_log (zeit, mitarbeiter, ergebnis, text, wert, dauer_s) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (_now(), mitarbeiter, ergebnis, text, wert, round(dauer_s, 1)))
+
+
+def team_bilanz(tage: int = 7) -> dict:
+    """Je Mitarbeiter: wie oft welches Ergebnis. Beim Lektor zusätzlich die Durchschnittsnote."""
+    seit = (datetime.now() - timedelta(days=tage)).isoformat(timespec="seconds")
+    bilanz: dict[str, dict] = {}
+    with _db() as con:
+        for r in con.execute("SELECT mitarbeiter, ergebnis, COUNT(*) AS n, AVG(wert) AS schnitt "
+                             "FROM team_log WHERE zeit >= ? GROUP BY mitarbeiter, ergebnis", (seit,)):
+            bilanz.setdefault(r["mitarbeiter"], {})[r["ergebnis"]] = r["n"]
+            if r["mitarbeiter"] == "lektor" and r["ergebnis"] == "geprueft" and r["schnitt"] is not None:
+                bilanz["lektor"]["schnitt"] = round(r["schnitt"], 1)
+    return bilanz
+
+
+def team_letzte(n: int = 10) -> list[dict]:
+    with _db() as con:
+        return [dict(r) for r in con.execute(
+            "SELECT * FROM team_log ORDER BY id DESC LIMIT ?", (n,)).fetchall()]
+
+
+# ── Personalakte: Status jedes Agenten (siehe hauptagent.py) ───────────────────
+def personal(agent: str) -> dict:
+    with _db() as con:
+        r = con.execute("SELECT * FROM personal WHERE agent=?", (agent,)).fetchone()
+    return dict(r) if r else {"agent": agent, "status": "aktiv", "version": 1, "grund": "", "seit": ""}
+
+
+def personal_setze(agent: str, status: str, grund: str = "", neue_version: bool = False):
+    version = personal(agent)["version"] + (1 if neue_version else 0)
+    with _db() as con:
+        con.execute("INSERT INTO personal (agent, status, version, grund, seit) VALUES (?,?,?,?,?) "
+                    "ON CONFLICT(agent) DO UPDATE SET status=excluded.status, "
+                    "version=excluded.version, grund=excluded.grund, seit=excluded.seit",
+                    (agent, status, version, grund, _now()))
+
+
+def erstes_event(typ: str) -> str | None:
+    """Zeitpunkt des ältesten Ereignisses dieses Typs — seit wann läuft das System?"""
+    with _db() as con:
+        r = con.execute("SELECT MIN(zeit) FROM events WHERE typ=?", (typ,)).fetchone()
+    return r[0]
 
 
 # ── Für die KI: alles Wichtige in einem Block ──────────────────────────────────

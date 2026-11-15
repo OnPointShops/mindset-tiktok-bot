@@ -53,6 +53,17 @@ def _pending_for(queue: list[dict], account_id: str) -> list[int]:
             and q.get("status") not in ("posted", "failed")]
 
 
+def _redaktion(script: dict, acc) -> dict | None:
+    """Gibt das Skript durch die Redaktion (team.py). Stürzt die Redaktion selbst
+    ab, geht das Skript ungeprüft durch — sie darf den Betrieb nie anhalten."""
+    try:
+        import team
+        return team.redaktion(script, acc)
+    except Exception as e:  # noqa: BLE001
+        logger.error("[%s] Redaktion abgestürzt (%s) -> Skript ungeprüft übernommen", acc.id, e)
+        return script
+
+
 def ensure_queue_filled(acc, min_pending: int = 2):
     """Hält je Account immer einen kleinen Vorrat an Skripten bereit."""
     queue = _load_queue()
@@ -83,6 +94,12 @@ def ensure_queue_filled(acc, min_pending: int = 2):
         known_topics.add(script.get("topic"))
         script["account"] = acc.id
         script["length"] = "long" if want_long else "normal"
+        # Vier-Augen-Prinzip: Lektor und Compliance sehen jedes Skript, bevor es
+        # in den Vorrat kommt. Das Thema bleibt oben vorgemerkt, damit ein
+        # gesperrtes Skript nicht im nächsten Versuch wiederkommt.
+        script = _redaktion(script, acc)
+        if script is None:
+            continue
         new_items.append(script)
         logger.info("[%s] Skript generiert: %s", acc.id, script.get("topic"))
 

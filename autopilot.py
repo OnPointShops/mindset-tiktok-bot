@@ -1,12 +1,16 @@
 """
 Der Autopilot. Läuft mehrmals täglich auf dem MacBook und macht einen
-kompletten Durchgang: prüfen → heilen → messen → posten → entdecken → planen → melden.
+kompletten Durchgang: prüfen → heilen → posten → messen → entdecken → auswerten → planen → melden.
 
 SICHERHEITSGRENZE — bewusst und nicht verhandelbar:
 Der Autopilot ändert NIEMALS selbst seinen eigenen Programmcode. Er darf
 reparieren (Paket nachinstallieren, Platte aufräumen, Lauf wiederholen),
 messen, recherchieren und VORSCHLAGEN. Code-Änderungen landen als Vorschlag
 im Gedächtnis und werden in einer Sitzung mit Claude umgesetzt.
+
+Die KI-Agenten sind davon nicht berührt: Ein Agent ist eine Textdatei mit
+Rolle und Auftrag, kein Programmcode. Der Hauptagent (hauptagent.py) darf
+Agenten deshalb selbst einstellen, neu besetzen und kündigen.
 
 Der Grund ist nicht Vorsicht um ihrer selbst willen: Ein System, das sich
 nachts unbeaufsichtigt umschreibt, ist irgendwann kaputt, und niemand weiß
@@ -269,6 +273,41 @@ def strategie_auffrischen():
         brain.log_error("improver", str(e))
 
 
+def team_analyse():
+    """Der Analyst (team.py) sucht in den Abrufzahlen nach Mustern. Läuft VOR dem
+    Planen, damit der Plan des Tages die neuen Erkenntnisse schon kennt."""
+    if not _einmal_taeglich("analyst"):
+        return
+    try:
+        import team
+        team.analyse()
+    except Exception as e:  # noqa: BLE001
+        brain.log_error("team_analyst", str(e))
+
+
+def eingang_abarbeiten() -> list[str]:
+    """Video-Aufträge aus der Handy-App bauen (eingang.py). Läuft auch im kurzen
+    Durchgang: Kai soll nicht bis zum Abend auf sein bestelltes Video warten."""
+    try:
+        import eingang
+        return eingang.abarbeiten()
+    except Exception as e:  # noqa: BLE001
+        brain.log_error("eingang", str(e))
+        return []
+
+
+def personalpruefung():
+    """Der Hauptagent (hauptagent.py) zieht Kasse und prüft das Personal: Wer
+    nachweislich schadet, wird neu besetzt; wer nie gebraucht wird, geht."""
+    if not _einmal_taeglich("personal"):
+        return
+    try:
+        import hauptagent
+        hauptagent.pruefung()
+    except Exception as e:  # noqa: BLE001
+        brain.log_error("hauptagent", str(e))
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  6. PLANEN — was ist der nächste sinnvolle Schritt?
 # ══════════════════════════════════════════════════════════════════════════════
@@ -348,6 +387,20 @@ def melden(gepostet: int, geheilt: list[str], zahlen: dict, plan: dict, probleme
     z.append(f"**Heute gepostet:** {gepostet}  ·  "
              f"**Views gesamt:** {zahlen.get('views_gesamt', '—')}  ·  "
              f"**Trend 14 Tage:** {zahlen.get('trend_14_tage_prozent', '—')} %")
+    try:
+        import team
+        team_zeile = team.kurzbericht()
+    except Exception:  # noqa: BLE001
+        team_zeile = ""
+    if team_zeile:
+        z.append(f"**Redaktion heute:** {team_zeile}")
+    try:
+        import hauptagent
+        personal_zeile = hauptagent.kurzbericht()
+    except Exception:  # noqa: BLE001
+        personal_zeile = ""
+    if personal_zeile:
+        z.append(f"**Personal:** {personal_zeile}")
     if geheilt:
         z.append(f"**Selbst repariert:** {'; '.join(_einzeilig(g, 60) for g in geheilt[:3])}")
     z.append("")
@@ -389,6 +442,9 @@ def run(kurz: bool = False) -> str:
         ok, probleme = pruefen()
 
     gepostet = posten() if ok else 0
+    videos = eingang_abarbeiten() if ok else []
+    if videos:
+        notify("🎬 JK24", f"{len(videos)} bestellte(s) Video(s) fertig in videos/")
     if not ok:
         probleme.append("Posten übersprungen — Selbsttest hat kritische Fehler gemeldet.")
 
@@ -397,6 +453,8 @@ def run(kurz: bool = False) -> str:
         zahlen = messen()
         strategie_auffrischen()
         entdecken()
+        team_analyse()
+        personalpruefung()
         plan = planen({"gepostet_heute": gepostet, "probleme": probleme, **zahlen})
 
     bericht = melden(gepostet, geheilt, zahlen, plan, probleme)
